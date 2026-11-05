@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from exercise_quality.core.sagittal_body import BodyPopulation
-from exercise_quality.exercises.squat.balanced import generate_squat
+from exercise_quality.exercises.squat.balanced import generate_feasible_squat
 from exercise_quality.exercises.squat.drawing import draw_pose, style_axes
 from exercise_quality.exercises.squat.protocols import ISHIDA_PARALLEL, sample_style
 
@@ -28,12 +28,14 @@ rng = np.random.default_rng(42)
 fig, axes = plt.subplots(3, 4, figsize=(14, 13))
 for ax in axes.flat:
     body = population.sample(rng)
-    seq = generate_squat(body, sample_style(rng, body, ISHIDA_PARALLEL), fps=50)
+    seq = generate_feasible_squat(body, sample_style(rng, body, ISHIDA_PARALLEL), fps=50)
     i = int(np.argmax(seq.angles.knee_flexion))
     m = seq.measured()
     draw_pose(ax, seq.frame(i), com=seq.com[i], support=seq.support)
     style_axes(ax)
-    status = "" if seq.is_feasible else "  [" + ", ".join(seq.flags) + "]"
+    status = "" if seq.is_feasible else "  [INFEASIBLE: " + ", ".join(seq.flags) + "]"
+    if "depth_limited_by_mobility" in seq.notes:
+        status += "  [depth limited]"
     ax.set_title(
         f"{body.sex}, {body.stature:.2f} m, thigh/shank {body.thigh / body.shank:.2f}\n"
         f"knee {m['knee_flexion'][i]:.0f}, ankle {m['ankle_dorsiflexion'][i]:.0f}, "
