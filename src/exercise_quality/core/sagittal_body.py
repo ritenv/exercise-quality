@@ -45,7 +45,7 @@ HEEL_FRACTION_OF_FOOT = 0.21
 
 LENGTH_FIELDS = (
     "ankle_height", "heel_offset", "foot_length", "shank", "thigh",
-    "trunk", "head", "shoulder_drop", "upper_arm", "forearm", "hand",
+    "pelvis", "thorax", "head", "shoulder_drop", "upper_arm", "forearm", "hand",
 )
 
 
@@ -53,7 +53,10 @@ LENGTH_FIELDS = (
 class SagittalBody:
     """All lengths in metres, mass in kilograms.
 
-    shoulder_drop: distance from C7 down the trunk line to the shoulder
+    pelvis: hip joint centres up to the navel (omphalion) level, de Leva's
+    lower trunk.
+    thorax: navel level up to C7, de Leva's middle plus upper trunk.
+    shoulder_drop: distance from C7 down the thorax line to the shoulder
     joint centre.
     heel_offset: horizontal distance the heel extends behind the ankle.
     """
@@ -66,7 +69,8 @@ class SagittalBody:
     foot_length: float
     shank: float
     thigh: float
-    trunk: float
+    pelvis: float
+    thorax: float
     head: float
     shoulder_drop: float
     upper_arm: float
@@ -80,8 +84,8 @@ class SagittalBody:
             value = getattr(self, name)
             if not np.isfinite(value) or value <= 0:
                 raise ValueError(f"{name} must be positive and finite, got {value}")
-        if self.shoulder_drop >= self.trunk:
-            raise ValueError("shoulder joint must lie on the trunk, below C7")
+        if self.shoulder_drop >= self.thorax:
+            raise ValueError("shoulder joint must lie on the thorax, below C7")
         if self.heel_offset >= self.foot_length:
             raise ValueError("heel offset must be shorter than the foot")
 
@@ -89,6 +93,11 @@ class SagittalBody:
     def toe_offset(self):
         """Horizontal distance from the ankle forward to the toe tip."""
         return self.foot_length - self.heel_offset
+
+    @property
+    def trunk(self):
+        """Hip joint centres to C7 (pelvis plus thorax)."""
+        return self.pelvis + self.thorax
 
     @property
     def segments(self):
@@ -106,7 +115,7 @@ def body_from_measurements(m, sex, subject_id=""):
     """Build a body from one person's standing measurements (metres, kg).
 
     ``m`` needs: stature_m, lateral_malleolus_height_m, tibiale_height_m,
-    trochanterion_height_m, cervicale_height_m, acromion_height_m,
+    trochanterion_height_m, omphalion_height_m, cervicale_height_m, acromion_height_m,
     acromion_radiale_length_m, radiale_stylion_length_m, hand_length_m,
     foot_length_m, mass_kg.
     """
@@ -115,6 +124,9 @@ def body_from_measurements(m, sex, subject_id=""):
     ankle = m["lateral_malleolus_height_m"]
     knee = m["tibiale_height_m"] + off["knee_from_tibiale"]
     hip = m["trochanterion_height_m"] + off["hip_from_trochanterion"]
+    # de Leva splits the trunk at the navel (omphalion); ANSUR II measures
+    # its standing height directly
+    navel = m["omphalion_height_m"]
     cervicale = m["cervicale_height_m"]
     shoulder = m["acromion_height_m"] + off["shoulder_from_acromion"]
 
@@ -145,7 +157,8 @@ def body_from_measurements(m, sex, subject_id=""):
         foot_length=foot,
         shank=knee - ankle,
         thigh=hip - knee,
-        trunk=cervicale - hip,
+        pelvis=navel - hip,
+        thorax=cervicale - navel,
         head=m["stature_m"] - cervicale,
         shoulder_drop=cervicale - shoulder,
         upper_arm=upper_arm,

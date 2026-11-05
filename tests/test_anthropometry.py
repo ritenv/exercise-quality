@@ -141,6 +141,22 @@ def test_proportions_are_plausible(population, sex):
         assert 0.10 < body.upper_arm / h < 0.22
 
 
+@pytest.mark.parametrize("sex", deleva.SEXES)
+def test_pelvis_and_thorax_lengths(population, sex):
+    bodies = population.bodies(sex)
+    for b in bodies:
+        assert b.trunk == pytest.approx(b.pelvis + b.thorax)
+        assert 0.03 < b.pelvis < 0.30
+        assert b.shoulder_drop < b.thorax
+    # male navel split agrees with de Leva's lower trunk once scaled; the
+    # female one is shorter than de Leva's 15-woman sample suggests
+    stature = np.mean([b.stature for b in bodies])
+    scale = stature / deleva.REFERENCE_SUBJECT[sex]["stature_m"]
+    expected = deleva.split_trunk_parameters(sex)["pelvis"].reference_length_m * scale
+    tolerance = {"male": 0.06, "female": 0.25}[sex]
+    assert abs(np.mean([b.pelvis for b in bodies]) / expected - 1) < tolerance
+
+
 def test_sampling_is_reproducible(population):
     a = [population.sample(np.random.default_rng(7)) for _ in range(1)]
     b = [population.sample(np.random.default_rng(7)) for _ in range(1)]

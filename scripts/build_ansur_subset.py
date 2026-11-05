@@ -13,7 +13,7 @@ then run:
 The output keeps only the measurements needed to place joint centres in
 a side-view model, converted to metres and kilograms. Rows whose heights
 are not ordered the way a standing human must be (ankle below knee below
-hip and so on) are dropped and counted.
+hip below navel and so on) are dropped and counted.
 
 Units in the raw files: millimetres, except body mass, which is stored in
 hectograms even though the column is called "weightkg".
@@ -34,6 +34,7 @@ LENGTH_COLUMNS = {
     "lateralmalleolusheight": "lateral_malleolus_height_m",
     "tibialheight": "tibiale_height_m",
     "trochanterionheight": "trochanterion_height_m",
+    "waistheightomphalion": "omphalion_height_m",
     "cervicaleheight": "cervicale_height_m",
     "acromialheight": "acromion_height_m",
     "acromionradialelength": "acromion_radiale_length_m",
@@ -51,6 +52,7 @@ def heights_are_ordered(row):
         < row["lateral_malleolus_height_m"]
         < row["tibiale_height_m"]
         < row["trochanterion_height_m"]
+        < row["omphalion_height_m"]
         < row["acromion_height_m"]
         < row["cervicale_height_m"]
         < row["stature_m"]
