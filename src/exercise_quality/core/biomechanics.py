@@ -1,23 +1,6 @@
 import numpy as np
 
-
-def angle_between(v1, v2):
-    """Smallest angle between two vectors, in degrees."""
-    v1 = np.asarray(v1, dtype=float)
-    v2 = np.asarray(v2, dtype=float)
-
-    denominator = np.linalg.norm(v1) * np.linalg.norm(v2)
-
-    if denominator < 1e-10:
-        raise ValueError("Cannot measure a zero-length vector")
-
-    cosine = np.clip(
-        np.dot(v1, v2) / denominator,
-        -1.0,
-        1.0,
-    )
-
-    return float(np.degrees(np.arccos(cosine)))
+from exercise_quality.core.geometry import angle_between
 
 
 def measure_pose(joints, body):

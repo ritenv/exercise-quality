@@ -1,15 +1,6 @@
 import numpy as np
 
-
-def angle_between(a, b):
-    """Return the angle between two vectors in degrees."""
-    norm = np.linalg.norm(a) * np.linalg.norm(b)
-
-    if norm < 1e-10:
-        return 0.0
-
-    cosine = np.clip(np.dot(a, b) / norm, -1.0, 1.0)
-    return float(np.degrees(np.arccos(cosine)))
+from exercise_quality.core.geometry import angle_between
 
 
 def validate_squat_pose(joints):
@@ -18,11 +9,15 @@ def validate_squat_pose(joints):
     hip = joints["hip"]
     shoulder = joints["shoulder"]
 
-    # Interior knee angle: 180 = straight leg
-    knee_angle = angle_between(
-        ankle - knee,
-        hip - knee,
-    )
+    issues = []
+
+    # Interior knee angle (180 = straight leg); a zero-length segment has
+    # no angle, which is reported as an issue instead of a fake number
+    try:
+        knee_angle = angle_between(ankle - knee, hip - knee)
+    except ValueError:
+        knee_angle = 0.0
+        issues.append("degenerate_segment")
 
     # Torso inclination from vertical
     torso = shoulder - hip
@@ -35,8 +30,6 @@ def validate_squat_pose(joints):
     shin_angle = float(np.degrees(
         np.arctan2(shin[0], shin[1])
     ))
-
-    issues = []
 
     # Broad preliminary limits, not clinical standards
     if not 45 <= knee_angle <= 180.01:

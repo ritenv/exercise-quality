@@ -50,12 +50,6 @@ def calculate_joints(
     }
 
 
-joints = calculate_joints(
-    shin_angle=25,
-    thigh_angle=-65,
-    torso_angle=35,
-)
-
 connections = [
     ("ankle", "knee"),
     ("knee", "hip"),
@@ -65,7 +59,10 @@ connections = [
 ]
 
 
-def draw_skeleton():
+def draw_skeleton(joints=None):
+    """Plot a pose. Without arguments, draws the original demo pose."""
+    if joints is None:
+        joints = calculate_joints(shin_angle=25, thigh_angle=-65, torso_angle=35)
     fig, ax = plt.subplots(figsize=(5, 7))
 
     for start, end in connections:
