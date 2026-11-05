@@ -129,6 +129,67 @@ HAND_MET3_TO_DAC3_RATIO = {
 }
 
 
+# Table 4 trunk sub-segments, used to split the trunk into a pelvis and a
+# thorax. (name, origin, other, length mm, mass %, CM % from origin,
+# sagittal r %). The CERV-XYPH length is not tabulated; it is derived
+# below as the whole trunk (CERV-MIDH) minus the middle and lower trunk,
+# i.e. the three are treated as stacked vertically, matching how the
+# body model treats upright standing.
+TRUNK_SUBSEGMENTS = {
+    "female": {
+        "upper": ("CERV", "XYPH", None, 15.45, 50.50, 46.6),
+        "middle": ("XYPH", "OMPH", 205.3, 14.65, 45.12, 43.3),
+        "lower": ("OMPH", "MIDH", 181.5, 12.47, 49.20, 43.3),
+    },
+    "male": {
+        "upper": ("CERV", "XYPH", None, 15.96, 50.66, 50.5),
+        "middle": ("XYPH", "OMPH", 215.5, 16.33, 45.02, 48.2),
+        "lower": ("OMPH", "MIDH", 145.7, 11.17, 61.15, 61.5),
+    },
+}
+
+
+def split_trunk_parameters(sex):
+    """Pelvis (OMPH-MIDH) and thorax (CERV-OMPH) parameters from de Leva.
+
+    The pelvis is de Leva's lower trunk as tabulated. The thorax combines
+    the upper trunk (CERV-XYPH) and middle trunk (XYPH-OMPH): their masses
+    add, the combined centre of mass is their mass-weighted mean along the
+    CERV-OMPH line, and the radius of gyration follows from the parallel
+    axis theorem.
+
+    Returns {"pelvis": SegmentParameters, "thorax": SegmentParameters}.
+    Reference lengths are de Leva's sample means.
+    """
+    sub = TRUNK_SUBSEGMENTS[sex]
+    whole = SEGMENT_TABLE[sex]["trunk"].reference_length_m * 1000.0
+    _, _, middle_len, middle_mass, middle_cm, middle_r = sub["middle"]
+    _, _, lower_len, lower_mass, lower_cm, lower_r = sub["lower"]
+    _, _, _, upper_mass, upper_cm, upper_r = sub["upper"]
+    upper_len = whole - middle_len - lower_len
+    thorax_len = upper_len + middle_len
+
+    # positions below CERV, in mm
+    upper_com = upper_cm / 100.0 * upper_len
+    middle_com = upper_len + middle_cm / 100.0 * middle_len
+    mass = upper_mass + middle_mass
+    com = (upper_mass * upper_com + middle_mass * middle_com) / mass
+    inertia = (
+        upper_mass * ((upper_r / 100.0 * upper_len) ** 2 + (upper_com - com) ** 2)
+        + middle_mass * ((middle_r / 100.0 * middle_len) ** 2 + (middle_com - com) ** 2)
+    )
+    gyration = (inertia / mass) ** 0.5 / thorax_len
+
+    return {
+        "pelvis": SegmentParameters(
+            "pelvis", "OMPH", "MIDH", lower_mass / 100.0, lower_cm / 100.0,
+            lower_r / 100.0, lower_len / 1000.0),
+        "thorax": SegmentParameters(
+            "thorax", "CERV", "OMPH", mass / 100.0, com / thorax_len,
+            gyration, thorax_len / 1000.0),
+    }
+
+
 def segment_parameters(sex):
     try:
         return SEGMENT_TABLE[sex]

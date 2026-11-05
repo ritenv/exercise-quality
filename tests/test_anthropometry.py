@@ -56,6 +56,42 @@ def test_table2_offsets_reproduce_table4_upper_arm(sex):
     assert derived == pytest.approx(table4, abs=0.0005)
 
 
+@pytest.mark.parametrize("sex", deleva.SEXES)
+def test_trunk_split_conserves_mass(sex):
+    split = deleva.split_trunk_parameters(sex)
+    whole = deleva.segment_parameters(sex)["trunk"]
+    total = split["pelvis"].mass_fraction + split["thorax"].mass_fraction
+    assert total == pytest.approx(whole.mass_fraction, abs=1e-9)
+    total_len = split["pelvis"].reference_length_m + split["thorax"].reference_length_m
+    assert total_len == pytest.approx(whole.reference_length_m)
+
+
+@pytest.mark.parametrize("sex", deleva.SEXES)
+def test_trunk_split_reproduces_whole_trunk_centre_of_mass(sex):
+    """The three de Leva sub-segments were measured separately from the
+    whole trunk. Stacking them should land the combined centre of mass
+    close to the whole-trunk row (CERV-MIDH). This is an independent check
+    of the transcription and of the stacking assumption."""
+    split = deleva.split_trunk_parameters(sex)
+    whole = deleva.segment_parameters(sex)["trunk"]
+    p, t = split["pelvis"], split["thorax"]
+    # positions below CERV, metres
+    thorax_com = t.com_fraction * t.reference_length_m
+    # de Leva measures the pelvis centre from its origin, the navel (OMPH)
+    pelvis_com = t.reference_length_m + p.com_fraction * p.reference_length_m
+    combined = ((t.mass_fraction * thorax_com + p.mass_fraction * pelvis_com)
+                / (t.mass_fraction + p.mass_fraction))
+    expected = whole.com_fraction * whole.reference_length_m
+    assert combined == pytest.approx(expected, abs=0.004)  # within 4 mm
+
+
+@pytest.mark.parametrize("sex", deleva.SEXES)
+def test_thorax_parameters_are_physical(sex):
+    t = deleva.split_trunk_parameters(sex)["thorax"]
+    assert 0.3 < t.com_fraction < 0.6
+    assert 0.2 < t.sagittal_gyration_fraction < 0.5
+
+
 def test_unknown_sex_rejected():
     with pytest.raises(ValueError):
         deleva.segment_parameters("other")
