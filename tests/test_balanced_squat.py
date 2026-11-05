@@ -225,3 +225,52 @@ def test_stiff_hips_squat_shallower(body):
 def test_non_mobility_problems_are_not_hidden(body):
     seq = generate_feasible_squat(body, SquatStyle(com_target_bottom=1.2, com_target_shift=0.0))
     assert "com_target_outside_support" in seq.flags
+
+
+def test_preferred_trunk_curve():
+    from exercise_quality.exercises.squat.balanced import TRUNK_REFERENCE_KNEE, preferred_trunk
+
+    style = SquatStyle(trunk_peak_preference=40.0, trunk_coupling=1.25)
+    assert preferred_trunk(0.0, style) == pytest.approx(0.0)
+    assert preferred_trunk(TRUNK_REFERENCE_KNEE, style) == pytest.approx(40.0)
+    assert preferred_trunk(TRUNK_REFERENCE_KNEE + 20, style) == pytest.approx(40.0)  # flat beyond
+    # front loaded like Ishida's data: well over half the lean by 60 deg knee
+    assert 0.55 < preferred_trunk(60.0, style) / 40.0 < 0.65
+    no_pref = SquatStyle(trunk_peak_preference=None)
+    assert preferred_trunk(90.0, no_pref) == pytest.approx(0.0)
+
+
+def test_balance_correction_is_shared_between_ankle_and_trunk(body):
+    """Compared with the person's preferred pattern, the extra ankle and
+    extra trunk lean that balance asks for come in the chosen ratio."""
+    from exercise_quality.exercises.squat.balanced import preferred_trunk, solve_standing_lean
+
+    style = SquatStyle(ankle_compensation_share=0.3, limits=JointLimits(ankle_dorsiflexion=60))
+    seq = generate_squat(body, style)
+    m = seq.measured()
+    lean = solve_standing_lean(body, style)
+    knee = seq.angles.knee_flexion
+    u = knee / style.peak_knee_flexion
+    ankle_base = lean + style.ankle_knee_ratio * style.peak_knee_flexion * (1 - (1 - u) ** style.ankle_coupling)
+    trunk_base = lean + preferred_trunk(knee, style)
+    d_ankle = m["ankle_dorsiflexion"] - ankle_base
+    d_trunk = m["trunk_inclination"] - trunk_base
+    moving = np.abs(d_trunk) > 0.5
+    np.testing.assert_allclose(d_ankle[moving] / d_trunk[moving], 0.3 / 0.7, rtol=1e-6)
+
+
+def test_trunk_only_model_is_still_available(body):
+    """Share 0 with no trunk preference is the original model: the trunk
+    alone absorbs balance and the ankle follows its own pattern exactly."""
+    seq = generate_squat(body, SquatStyle(trunk_peak_preference=None, ankle_compensation_share=0.0))
+    assert np.max(np.abs(seq.balance_error)) < 1e-9
+    u = seq.angles.knee_flexion / seq.style.peak_knee_flexion
+    expected = seq.angles.ankle_dorsiflexion[0] + seq.style.ankle_knee_ratio * 120.0 * (1 - (1 - u) ** 1.27)
+    np.testing.assert_allclose(seq.angles.ankle_dorsiflexion, expected, atol=1e-9)
+
+
+def test_longer_thigh_uses_both_more_ankle_and_more_lean(body):
+    base = generate_squat(body, SquatStyle())
+    longer = generate_squat(dataclasses.replace(body, thigh=body.thigh * 1.12), SquatStyle())
+    assert longer.measured()["ankle_dorsiflexion"].max() > base.measured()["ankle_dorsiflexion"].max() + 1.0
+    assert peak_trunk(longer) > peak_trunk(base) + 1.0

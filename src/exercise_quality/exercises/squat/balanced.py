@@ -100,6 +100,14 @@ class SquatStyle:
     peak_knee_flexion: float = 120.0
     ankle_knee_ratio: float = 0.28
     ankle_coupling: float = 1.27
+    # Preferred trunk lean at Ishida's peak knee angle (deg). None means no
+    # preference, so the trunk alone absorbs balance (with share 0 that is
+    # the original trunk-only model).
+    trunk_peak_preference: float = 38.5
+    trunk_coupling: float = 1.25
+    # Share of the balance correction taken at the ankle; the trunk takes
+    # the rest. 0 = trunk only.
+    ankle_compensation_share: float = 0.5
     # Lumbopelvic rhythm: share of the total thigh-to-thorax flexion taken
     # at the hip before the hip limit; the rest is lumbar flexion.
     pelvis_share: float = 1.0
@@ -122,6 +130,8 @@ class SquatStyle:
             raise ValueError("peak_knee_flexion must be positive")
         if not 0.0 <= self.head_follow <= 1.5:
             raise ValueError("head_follow should be between 0 and 1.5")
+        if not 0.0 <= self.ankle_compensation_share <= 1.0:
+            raise ValueError("ankle_compensation_share must be in [0, 1]")
         if not 0.0 < self.pelvis_share <= 1.0:
             raise ValueError("pelvis_share must be in (0, 1]")
         if self.ankle_coupling < 1.0:
@@ -266,22 +276,67 @@ def solve_standing_lean(body, style):
     return float(_bisect(f, lo, hi))
 
 
-def solve_trunk(body, ankle, knee, target_x, style, start=None):
-    """Trunk inclination per frame that puts the COM x on ``target_x``.
+# Reference knee angle for the trunk preference curve: the peak knee
+# flexion in Ishida et al. 2025, where trunk lean was measured.
+TRUNK_REFERENCE_KNEE = 121.8
+
+# How sharply the ankle stops at its limit when a correction pushes it
+# there (degrees). ASSUMPTION, like HIP_LIMIT_BLEND_DEG.
+ANKLE_LIMIT_BLEND_DEG = 4.0
+
+
+def preferred_trunk(knee, style):
+    """Trunk lean the person would choose at this knee angle, before any
+    balance correction (degrees, excluding the standing lean).
+
+    Same curve family as the ankle coupling, anchored at Ishida's peak
+    knee angle; flat beyond it.
+    """
+    if style.trunk_peak_preference is None:
+        return np.zeros_like(np.asarray(knee, dtype=float))
+    u = np.clip(np.asarray(knee, dtype=float) / TRUNK_REFERENCE_KNEE, 0.0, 1.0)
+    return style.trunk_peak_preference * (1.0 - (1.0 - u) ** style.trunk_coupling)
+
+
+def split_correction(ankle_base, trunk_base, correction, style):
+    """Ankle and thorax after a balance correction (degrees).
+
+    The ankle takes ``ankle_compensation_share`` of the correction (never
+    passing the ankle limit) and the thorax the rest. Share 0 is the
+    original model where only the trunk adjusts.
+    """
+    share = style.ankle_compensation_share
+    if share == 0.0:
+        # the base pattern is already clipped to the limit
+        ankle = np.asarray(ankle_base, dtype=float) + 0.0 * correction
+    else:
+        ankle = smooth_min(ankle_base + share * correction,
+                           style.limits.ankle_dorsiflexion, ANKLE_LIMIT_BLEND_DEG)
+    thorax = trunk_base + (1.0 - share) * correction
+    return ankle, thorax
+
+
+def solve_correction(body, ankle_base, knee, trunk_base, target_x, style):
+    """Balance correction per frame that puts the COM x on ``target_x``.
 
     Searches a 1 degree grid for sign changes, follows the root nearest
     the previous frame (so the solution is continuous) and refines it by
     bisection. Frames without any root get NaN.
     """
-    ankle, knee, target_x = np.broadcast_arrays(
-        np.asarray(ankle, float), np.asarray(knee, float), np.asarray(target_x, float))
+    ankle_base, knee, trunk_base, target_x = np.broadcast_arrays(
+        *(np.asarray(v, float) for v in (ankle_base, knee, trunk_base, target_x)))
+
+    def com_x(a, k, t, lam):
+        ankle, thorax = split_correction(a, t, lam, style)
+        return _com_x(body, ankle, k, thorax, style)
+
     grid = TRUNK_SEARCH_DEG
-    values = _com_x(body, ankle[:, None], knee[:, None], grid[None, :], style)
+    values = com_x(ankle_base[:, None], knee[:, None], trunk_base[:, None], grid[None, :])
     values = values - target_x[:, None]
 
-    lo = np.full(ankle.shape, np.nan)
-    previous = start if start is not None else 0.0
-    for i in range(len(ankle)):
+    lo = np.full(knee.shape, np.nan)
+    previous = 0.0
+    for i in range(len(knee)):
         crossings = np.nonzero(np.sign(values[i, :-1]) != np.sign(values[i, 1:]))[0]
         if crossings.size == 0:
             continue
@@ -291,15 +346,15 @@ def solve_trunk(body, ankle, knee, target_x, style, start=None):
         previous = grid[k] + 0.5
 
     found = ~np.isnan(lo)
-    trunk = np.full(ankle.shape, np.nan)
+    correction = np.full(knee.shape, np.nan)
     if found.any():
-        a, kn, tx = ankle[found], knee[found], target_x[found]
+        a, kn, t, tx = ankle_base[found], knee[found], trunk_base[found], target_x[found]
 
-        def f(phi):
-            return _com_x(body, a, kn, phi, style) - tx
+        def f(lam):
+            return com_x(a, kn, t, lam) - tx
 
-        trunk[found] = _bisect(f, lo[found], lo[found] + 1.0)
-    return trunk
+        correction[found] = _bisect(f, lo[found], lo[found] + 1.0)
+    return correction
 
 
 def generate_squat(body, style=None, fps=100.0):
@@ -332,16 +387,20 @@ def generate_squat(body, style=None, fps=100.0):
     ankle_amplitude = max(0.0, min(wanted, available))
 
     knee = peak_knee * knee_profile
-    ankle = lean + ankle_amplitude * ankle_profile
+    ankle_base = lean + ankle_amplitude * ankle_profile
+    trunk_base = lean + preferred_trunk(knee, style)
     target_fraction = (style.com_target_start
                        + (style.com_target_bottom - style.com_target_start)
                        * knee_profile)
     target_x = support.x_at(target_fraction)
 
-    trunk = solve_trunk(body, ankle, knee, target_x, style, start=lean)
-    if np.isnan(trunk).any():
+    correction = solve_correction(body, ankle_base, knee, trunk_base, target_x, style)
+    if np.isnan(correction).any():
         flags.append("balance_unreachable")
-        trunk = _fill_gaps(trunk)
+        correction = _fill_gaps(correction)
+    ankle, trunk = split_correction(ankle_base, trunk_base, correction, style)
+    if "ankle_at_limit" not in notes and np.max(ankle) > limits.ankle_dorsiflexion - 0.5:
+        notes.append("ankle_at_limit")
 
     angles = _angles_for_trunk(ankle, knee, trunk, style)
     landmarks = forward_kinematics(body, angles)

@@ -67,6 +67,21 @@ HIP_LIMIT = (85.0, lit.MATA_2021["hip_at_ppt_absolute"].sd)
 # deg all cost 2.2-2.4), so neither value is pinned down on its own.
 HIP_END_RANGE_GAIN = 0.1
 
+# Preferred trunk lean (deg) at Ishida's peak knee angle: the published
+# peak trunk inclination and its between-subject SD, used directly. The
+# curve shape exponent is fitted to Ishida's 60 and 90 deg values in the
+# same way as the ankle (1.32 and 1.18, mean 1.25).
+TRUNK_PREFERENCE = (lit.ISHIDA_2025["trunk_peak"].mean, lit.ISHIDA_2025["trunk_peak"].sd)
+TRUNK_COUPLING = 1.25
+
+# Balance correction shared between ankle and trunk. ASSUMPTION: equal
+# sharing (0.5). With the trunk taking all of it (0), people with low
+# ankle use leant up to 80 deg and 17% could not reach parallel; any share
+# from 0.25 to 0.75 gave realistic spreads (Ishida men: trunk peak SD 7.3
+# vs 7.3 published, ankle SD 3.4 vs 4.5, knee SD 5.2 vs 5.7, nobody depth
+# limited). Real people evidently spread the correction across joints.
+ANKLE_COMPENSATION_SHARE = 0.5
+
 # How much of the trunk lean the head follows (0 = head stays upright,
 # 1 = head in line with the trunk). ASSUMPTION, no data used.
 HEAD_FOLLOW_RANGE = (0.3, 0.7)
@@ -185,6 +200,9 @@ def sample_style(rng, body, protocol=ISHIDA_PARALLEL,
         ankle_coupling=_normal(rng, ANKLE_COUPLING, 1.0, 1.6),
         head_follow=float(rng.uniform(*HEAD_FOLLOW_RANGE)),
         pelvis_share=_normal(rng, pelvis_share, 0.5, 1.0),
+        trunk_peak_preference=_normal(rng, TRUNK_PREFERENCE, 5.0, 80.0),
+        trunk_coupling=TRUNK_COUPLING,
+        ankle_compensation_share=ANKLE_COMPENSATION_SHARE,
         arms=protocol.arms,
         com_target_bottom=bottom,
         com_target_shift=shift,
