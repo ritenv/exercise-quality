@@ -99,7 +99,9 @@ def test_longer_thigh_needs_more_trunk_lean(body):
 def test_limited_ankle_needs_more_trunk_lean(body):
     free = generate_squat(body, SquatStyle())
     stiff = generate_squat(body, SquatStyle(limits=JointLimits(ankle_dorsiflexion=22.0)))
-    assert "ankle_at_limit" in stiff.flags
+    # running out of ankle is a note, not a failure in itself
+    assert "ankle_at_limit" in stiff.notes
+    assert "ankle_at_limit" not in stiff.flags
     assert np.max(stiff.angles.ankle_dorsiflexion) == pytest.approx(22.0)
     assert peak_trunk(stiff) > peak_trunk(free) + 5.0
 

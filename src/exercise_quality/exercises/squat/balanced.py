@@ -3,10 +3,11 @@
 How a frame is built
 --------------------
 1. The knee follows a minimum-jerk profile to ``peak_knee_flexion``.
-2. The ankle dorsiflexes in proportion to the peak knee flexion
-   (``ankle_knee_ratio``), on its own minimum-jerk profile that can finish
-   a little earlier than the knee (``ankle_lead``), and never past the
-   person's ankle limit.
+2. The ankle dorsiflexes by ``ankle_knee_ratio`` x peak knee flexion in
+   total, coupled to knee progress u = knee / peak knee as
+   1 - (1 - u) ** ankle_coupling. With the coupling above 1 the ankle
+   does more of its work early, as measured by Ishida et al. (2025).
+   It never goes past the person's ankle limit.
 3. Arms and head follow the chosen posture rules.
 4. The trunk inclination is **solved** so that the whole-body centre of
    mass sits over a target point on the foot. Trunk lean is therefore an
@@ -62,10 +63,13 @@ class ArmPosture:
 
 # Arms straight out, parallel to the floor (Zawadka et al. 2020 protocol).
 ARMS_FORWARD = ArmPosture("world", 90.0, 0.0)
-# Arms crossed over the chest (Kasahara et al. 2024 protocol). The two
-# angles are a geometric guess that puts the hands near the opposite
-# shoulder, not measured values.
-ARMS_CROSSED = ArmPosture("trunk", 30.0, 130.0)
+# Arms crossed over the chest (Kasahara et al. 2024 protocol). Crossed
+# forearms point across the body, which a side view cannot show at full
+# length, so this is a projection approximation chosen to put the arm
+# mass where it really sits: upper arm close to the trunk, forearm and
+# hand against the front of the chest (about 10-15 cm in front of the
+# shoulder joint). The two angles are a geometric guess, not measured.
+ARMS_CROSSED = ArmPosture("trunk", 20.0, 150.0)
 ARMS_HANGING = ArmPosture("trunk", 0.0, 0.0)
 
 
@@ -88,7 +92,7 @@ class SquatStyle:
 
     peak_knee_flexion: float = 120.0
     ankle_knee_ratio: float = 0.28
-    ankle_lead: float = 0.93
+    ankle_coupling: float = 1.27
     head_follow: float = 0.5
     arms: ArmPosture = ARMS_CROSSED
     # Fraction of foot length from the heel that the centre of mass is
@@ -108,6 +112,9 @@ class SquatStyle:
             raise ValueError("peak_knee_flexion must be positive")
         if not 0.0 <= self.head_follow <= 1.5:
             raise ValueError("head_follow should be between 0 and 1.5")
+        if self.ankle_coupling < 1.0:
+            # below 1 the ankle would have infinite speed at the start
+            raise ValueError("ankle_coupling must be at least 1")
 
 
 @dataclass
@@ -119,8 +126,9 @@ class SquatSequence:
     landmarks: dict              # name -> (T, 2)
     com: np.ndarray              # (T, 2)
     com_target_x: np.ndarray     # (T,)
-    flags: tuple
+    flags: tuple                 # problems that make the rep unrealistic
     balance_error: np.ndarray    # (T,) COM x minus target, metres
+    notes: tuple = ()            # realistic but worth knowing, e.g. ankle_at_limit
 
     @property
     def support(self):
@@ -235,11 +243,11 @@ def generate_squat(body, style=None, fps=100.0):
     timing = style.timing
     limits = style.limits
     support = support_region(body)
-    flags = []
+    flags, notes = [], []
 
     times = timing.times(fps)
-    knee_profile = timing.profile(times, 1.0)
-    ankle_profile = timing.profile(times, style.ankle_lead)
+    knee_profile = timing.profile(times)
+    ankle_profile = 1.0 - (1.0 - np.clip(knee_profile, 0.0, 1.0)) ** style.ankle_coupling
 
     peak_knee = style.peak_knee_flexion
     if peak_knee > limits.knee_flexion:
@@ -254,7 +262,8 @@ def generate_squat(body, style=None, fps=100.0):
     wanted = style.ankle_knee_ratio * peak_knee
     available = limits.ankle_dorsiflexion - lean
     if wanted > available:
-        flags.append("ankle_at_limit")
+        # running out of ankle mobility is normal; the trunk compensates
+        notes.append("ankle_at_limit")
     ankle_amplitude = max(0.0, min(wanted, available))
 
     knee = peak_knee * knee_profile
@@ -286,6 +295,7 @@ def generate_squat(body, style=None, fps=100.0):
         com_target_x=target_x,
         flags=tuple(flags),
         balance_error=com[:, 0] - target_x,
+        notes=tuple(notes),
     )
 
 

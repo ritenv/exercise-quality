@@ -57,12 +57,73 @@ def test_rep_phases():
 def test_lead_reaches_peak_early_and_mirrors_on_ascent():
     timing = RepTiming(stand_before=0.0, descent=2.0, ascent=2.0, stand_after=0.0)
     lead = 0.8
-    assert timing.profile(1.6, lead) == pytest.approx(1.0)
-    assert timing.profile(1.6, 1.0) < 1.0
+    assert timing.lagged_profile(1.6, lead) == pytest.approx(1.0)
+    assert timing.lagged_profile(1.6, 1.0) < 1.0
     # time reverse: still at the peak until 1 - lead of the ascent
-    assert timing.profile(2.0 + 0.4, lead) == pytest.approx(1.0)
+    assert timing.lagged_profile(2.0 + 0.4, lead) == pytest.approx(1.0)
     t = np.linspace(0, 4, 401)
-    np.testing.assert_allclose(timing.profile(t, lead), timing.profile(4 - t, lead), atol=1e-12)
+    np.testing.assert_allclose(timing.lagged_profile(t, lead),
+                               timing.lagged_profile(4 - t, lead), atol=1e-12)
+
+
+def _derivatives(timing, t, h=1e-5):
+    p = timing.profile
+    v = (p(t + h) - p(t - h)) / (2 * h)
+    a = (p(t + h) - 2 * p(t) + p(t - h)) / h**2
+    return v, a
+
+
+def test_continuous_rep_turns_around_without_stopping_acceleration():
+    timing = RepTiming(stand_before=0.5, descent=2.0, bottom_hold=0.0, ascent=1.6)
+    bottom = timing.ascent_start
+    assert timing.profile(bottom) == pytest.approx(1.0)
+    v, a = _derivatives(timing, np.array([bottom - 1e-3, bottom + 1e-3]))
+    np.testing.assert_allclose(v, 0.0, atol=1e-2)
+    # acceleration at the bottom is negative (pushing back up) and the
+    # same from both sides
+    assert a[0] < -0.5 and a[0] == pytest.approx(a[1], rel=0.01)
+    assert timing.bottom_acceleration() == pytest.approx(a[0], rel=0.01)
+    # still starts and ends at rest with zero acceleration
+    for edge in (timing.descent_start + 1e-3, timing.ascent_start + timing.ascent - 1e-3):
+        v, a = _derivatives(timing, np.array([edge]))
+        assert abs(v[0]) < 1e-2 and abs(a[0]) < 0.1
+
+
+def test_continuous_profile_stays_between_standing_and_bottom():
+    timing = RepTiming(descent=1.3, ascent=2.1)
+    p = timing.profile(timing.times(500))
+    assert p.min() >= -1e-9 and p.max() <= 1 + 1e-9
+    down = p[(timing.times(500) <= timing.ascent_start)]
+    assert np.all(np.diff(down) >= -1e-12)
+
+
+def test_bottom_acceleration_minimises_jerk():
+    from exercise_quality.core.timing import _jerk_cost, _quintic
+
+    timing = RepTiming(descent=2.0, ascent=1.5)
+    best = timing.bottom_acceleration()
+
+    def cost(acc):
+        return (_jerk_cost(_quintic(0, 0, 0, 1, 0, acc, 2.0), 2.0)
+                + _jerk_cost(_quintic(1, 0, acc, 0, 0, 0, 1.5), 1.5))
+
+    assert cost(best) < cost(best + 0.05) and cost(best) < cost(best - 0.05)
+
+
+def test_jerk_cost_matches_numeric_integral():
+    from exercise_quality.core.timing import _jerk_cost, _quintic
+
+    coef = _quintic(0, 0, 0, 1, 0, -2.0, 1.7)
+    t = np.linspace(0, 1.7, 20001)
+    jerk = 6 * coef[3] + 24 * coef[4] * t + 60 * coef[5] * t**2
+    assert _jerk_cost(coef, 1.7) == pytest.approx(np.trapezoid(jerk**2, t), rel=1e-6)
+
+
+def test_pause_at_bottom_uses_separate_movements():
+    timing = RepTiming(bottom_hold=1.0)
+    assert timing.bottom_acceleration() == 0.0
+    t = timing.times(100)
+    np.testing.assert_allclose(timing.profile(t), timing.lagged_profile(t, 1.0))
 
 
 def test_times_cover_the_rep():
@@ -81,4 +142,4 @@ def test_invalid_timing_rejected(kwargs):
 
 def test_invalid_lead_rejected():
     with pytest.raises(ValueError):
-        RepTiming().profile(1.0, lead=0.0)
+        RepTiming().lagged_profile(1.0, lead=0.0)

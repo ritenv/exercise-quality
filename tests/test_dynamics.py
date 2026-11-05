@@ -69,6 +69,26 @@ def test_normal_tempo_squat_stays_on_the_foot(body):
     assert 0.7 < dyn.vertical_force.min() and dyn.vertical_force.max() < 1.3
 
 
+def test_ground_force_peaks_through_a_continuous_bottom(body):
+    """Without a pause, the push back up starts before the body stops, so
+    the vertical ground force is above body weight at the bottom instead
+    of dipping back to 1."""
+    seq = generate_squat(body, SquatStyle(timing=RepTiming(bottom_hold=0.0)))
+    dyn = analyse_dynamics(seq)
+    bottom = int(np.argmax(seq.angles.knee_flexion))
+    assert dyn.vertical_force[bottom] > 1.05
+    window = dyn.vertical_force[bottom - 30: bottom + 31]
+    assert dyn.vertical_force[bottom] >= window.max() - 0.01
+
+
+def test_paused_bottom_returns_to_body_weight(body):
+    seq = generate_squat(body, SquatStyle(timing=RepTiming(bottom_hold=1.0)))
+    dyn = analyse_dynamics(seq)
+    t = seq.style.timing
+    holding = (seq.times > t.ascent_start - 0.8) & (seq.times < t.ascent_start - 0.2)
+    np.testing.assert_allclose(dyn.vertical_force[holding], 1.0, atol=1e-6)
+
+
 def test_faster_reps_move_the_cop_further(body):
     offsets = []
     for duration in (3.0, 2.0, 1.0, 0.6):
@@ -76,8 +96,18 @@ def test_faster_reps_move_the_cop_further(body):
         dyn = analyse_dynamics(generate_squat(body, SquatStyle(timing=timing)))
         offsets.append(dyn.max_cop_offset)
     assert offsets == sorted(offsets)
-    # quasi-static scaling: halving the duration roughly quadruples accelerations
-    assert offsets[2] / offsets[1] == pytest.approx(4.0, rel=0.15)
+
+
+def test_slow_reps_scale_with_inverse_square_of_duration(body):
+    """Halving the duration quadruples every acceleration. When the
+    accelerations are small next to g the COP offset is linear in them,
+    so it should quadruple too. (At fast tempos the vertical acceleration
+    in the denominator g + ydd breaks this, which is expected.)"""
+    def offset(duration):
+        timing = RepTiming(descent=duration, ascent=duration)
+        return analyse_dynamics(generate_squat(body, SquatStyle(timing=timing))).max_cop_offset
+
+    assert offset(4.0) / offset(8.0) == pytest.approx(4.0, rel=0.1)
 
 
 def test_cop_is_independent_of_sampling_rate(body):
