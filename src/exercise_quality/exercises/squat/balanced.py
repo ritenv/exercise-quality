@@ -153,21 +153,32 @@ class SquatSequence:
         return not self.flags
 
 
+def pelvis_for_thorax(thorax, thigh, style):
+    """Pelvis inclination given the thorax and thigh inclinations.
+
+    For now the spine is held rigid: the pelvis follows the thorax.
+    """
+    return np.asarray(thorax, dtype=float) + 0.0 * thigh
+
+
 def _angles_for_trunk(ankle, knee, trunk, style):
-    """Joint angles for given ankle, knee and absolute trunk inclination."""
+    """Joint angles for given ankle, knee and absolute thorax inclination."""
     thigh = ankle - knee
+    pelvis = pelvis_for_thorax(trunk, thigh, style)
+    shape = np.shape(pelvis)
     if style.arms.reference == "world":
         shoulder = style.arms.upper_arm_angle + trunk
     else:
-        shoulder = np.broadcast_to(style.arms.upper_arm_angle, np.shape(trunk))
+        shoulder = np.broadcast_to(style.arms.upper_arm_angle, shape)
     return JointAngles(
         ankle_dorsiflexion=ankle,
         knee_flexion=knee,
-        hip_flexion=trunk - thigh,
+        hip_flexion=pelvis - thigh,
+        lumbar_flexion=trunk - pelvis,
         neck_flexion=(style.head_follow - 1.0) * trunk,
         shoulder_flexion=shoulder,
-        elbow_flexion=np.broadcast_to(style.arms.elbow_flexion, np.shape(trunk)),
-        wrist_flexion=np.zeros(np.shape(trunk)),
+        elbow_flexion=np.broadcast_to(style.arms.elbow_flexion, shape),
+        wrist_flexion=np.zeros(shape),
     )
 
 

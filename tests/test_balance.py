@@ -49,14 +49,17 @@ def test_standing_com_height_is_plausible(population):
 
 
 def test_segment_centres_follow_de_leva_direction(body):
-    """de Leva measures from the origin landmark: trunk from C7, thigh from
-    the hip. Getting the direction backwards would move the trunk centre
+    """de Leva measures from the origin landmark: thorax from C7, pelvis
+    from the navel, thigh from the hip. Getting the direction backwards would move the trunk centre
     by several centimetres, so check it explicitly."""
     lm = forward_kinematics(body, JointAngles())
     c = segment_centres(body, lm)
-    trunk_from_neck = lm["neck"][1] - c["trunk"][1]
-    assert trunk_from_neck == pytest.approx(
-        body.segments["trunk"].com_fraction * body.trunk)
+    thorax_from_neck = lm["neck"][1] - c["thorax"][1]
+    assert thorax_from_neck == pytest.approx(
+        body.segments["thorax"].com_fraction * body.thorax)
+    pelvis_from_navel = lm["lumbar"][1] - c["pelvis"][1]
+    assert pelvis_from_navel == pytest.approx(
+        body.segments["pelvis"].com_fraction * body.pelvis)
     thigh_from_hip = lm["hip"][1] - c["thigh"][1]
     assert thigh_from_hip == pytest.approx(
         body.segments["thigh"].com_fraction * body.thigh)
@@ -120,3 +123,36 @@ def test_crouching_with_vertical_trunk_falls_backwards(body):
     com = centre_of_mass(body, lm)
     assert not support_region(body).contains(com[0])
     assert com[0] < -body.heel_offset
+
+
+def test_straight_spine_matches_whole_trunk_centre_of_mass(body):
+    """With no lumbar bend, the pelvis + thorax split should put the
+    centre of mass close to where de Leva's single trunk segment would.
+
+    Men: ANSUR navel heights match de Leva's proportions, so the two agree
+    to about 1 mm. Women: ANSUR navels sit relatively higher than in de
+    Leva's 15-woman sample, so applying his sub-segment fractions to real
+    navel heights lowers the trunk centre by about 15 mm (about 7 mm for
+    the whole body). That is a real difference between the data sets,
+    bounded here so it cannot grow unnoticed."""
+    from exercise_quality.core.sagittal_model import SEGMENT_ENDPOINTS
+
+    rng = np.random.default_rng(9)
+    for _ in range(20):
+        vals = rng.uniform(-10, 80, size=7)
+        lm = forward_kinematics(body, JointAngles(*vals))  # lumbar_flexion = 0
+        masses = segment_masses(body)
+        centres = segment_centres(body, lm)
+        whole = deleva.whole_trunk_parameters(body.sex)
+        total, moment = 0.0, np.zeros(2)
+        for name, m in masses.items():
+            if name in ("pelvis", "thorax"):
+                continue
+            total += m
+            moment += m * centres[name]
+        trunk_mass = body.mass * whole.mass_fraction
+        trunk_centre = lm["neck"] + whole.com_fraction * (lm["hip"] - lm["neck"])
+        reference = (moment + trunk_mass * trunk_centre) / (total + trunk_mass)
+        split = centre_of_mass(body, lm)
+        limit = {"male": 0.002, "female": 0.008}[body.sex]
+        assert np.linalg.norm(split - reference) < limit

@@ -59,7 +59,7 @@ def test_table2_offsets_reproduce_table4_upper_arm(sex):
 @pytest.mark.parametrize("sex", deleva.SEXES)
 def test_trunk_split_conserves_mass(sex):
     split = deleva.split_trunk_parameters(sex)
-    whole = deleva.segment_parameters(sex)["trunk"]
+    whole = deleva.whole_trunk_parameters(sex)
     total = split["pelvis"].mass_fraction + split["thorax"].mass_fraction
     assert total == pytest.approx(whole.mass_fraction, abs=1e-9)
     total_len = split["pelvis"].reference_length_m + split["thorax"].reference_length_m
@@ -73,7 +73,7 @@ def test_trunk_split_reproduces_whole_trunk_centre_of_mass(sex):
     close to the whole-trunk row (CERV-MIDH). This is an independent check
     of the transcription and of the stacking assumption."""
     split = deleva.split_trunk_parameters(sex)
-    whole = deleva.segment_parameters(sex)["trunk"]
+    whole = deleva.whole_trunk_parameters(sex)
     p, t = split["pelvis"], split["thorax"]
     # positions below CERV, metres
     thorax_com = t.com_fraction * t.reference_length_m
@@ -127,7 +127,7 @@ def test_lengths_agree_with_de_leva_after_scaling(population, sex):
     for name, tol in tolerance.items():
         mean_length = np.mean([b.segment_length(
             "foot_length" if name == "foot" else name) for b in bodies])
-        expected = deleva.segment_parameters(sex)[name].reference_length_m * scale
+        expected = deleva.TABLE4[sex][name].reference_length_m * scale
         assert abs(mean_length / expected - 1) < tol, (name, mean_length, expected)
 
 

@@ -64,8 +64,9 @@ def _segments(rows):
 # Variants chosen: head VERT-CERV and trunk CERV-MIDH (the "alternative
 # endpoint" rows) so the head and trunk chain end to end at C7, and shank
 # KJC-LMAL so the ankle point matches the lateral malleolus height
-# measured in ANSUR II.
-SEGMENT_TABLE = {
+# measured in ANSUR II. The whole trunk row is kept for reference; the
+# body model uses it split into pelvis and thorax (see SEGMENT_TABLE).
+TABLE4 = {
     "female": _segments([
         ("head", "VERT", "CERV", 243.7, 6.68, 48.41, 27.1),
         ("trunk", "CERV", "MIDH", 614.8, 42.57, 49.64, 30.7),
@@ -162,7 +163,7 @@ def split_trunk_parameters(sex):
     Reference lengths are de Leva's sample means.
     """
     sub = TRUNK_SUBSEGMENTS[sex]
-    whole = SEGMENT_TABLE[sex]["trunk"].reference_length_m * 1000.0
+    whole = TABLE4[sex]["trunk"].reference_length_m * 1000.0
     _, _, middle_len, middle_mass, middle_cm, middle_r = sub["middle"]
     _, _, lower_len, lower_mass, lower_cm, lower_r = sub["lower"]
     _, _, _, upper_mass, upper_cm, upper_r = sub["upper"]
@@ -190,11 +191,28 @@ def split_trunk_parameters(sex):
     }
 
 
+def _model_segments(sex):
+    table = {k: v for k, v in TABLE4[sex].items() if k != "trunk"}
+    table.update(split_trunk_parameters(sex))
+    return table
+
+
+# The segments the body model uses: Table 4 with the trunk split at the
+# navel into pelvis and thorax.
+SEGMENT_TABLE = {sex: _model_segments(sex) for sex in SEXES}
+
+
 def segment_parameters(sex):
     try:
         return SEGMENT_TABLE[sex]
     except KeyError:
         raise ValueError(f"sex must be one of {SEXES}, got {sex!r}") from None
+
+
+def whole_trunk_parameters(sex):
+    """de Leva's single trunk segment (CERV-MIDH), for reference and checks."""
+    segment_parameters(sex)
+    return TABLE4[sex]["trunk"]
 
 
 def total_mass_fraction(sex):

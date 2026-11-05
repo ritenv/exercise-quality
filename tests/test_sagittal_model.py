@@ -11,6 +11,7 @@ from exercise_quality.core.sagittal_model import (
     JointAngles,
     forward_kinematics,
     measure_joint_angles,
+    segment_lengths,
 )
 
 TOL = 1e-9
@@ -107,6 +108,7 @@ def random_angles(rng, n):
         shoulder_flexion=rng.uniform(-40, 180, n),
         elbow_flexion=rng.uniform(0, 150, n),
         wrist_flexion=rng.uniform(-60, 60, n),
+        lumbar_flexion=rng.uniform(-30, 70, n),
     )
 
 
@@ -115,11 +117,7 @@ def test_segment_lengths_preserved_for_random_poses(population):
     for _ in range(40):
         b = population.sample(rng)
         lm = forward_kinematics(b, random_angles(rng, 50))
-        length_of = {
-            "head": b.head, "trunk": b.trunk, "upper_arm": b.upper_arm,
-            "forearm": b.forearm, "hand": b.hand, "thigh": b.thigh,
-            "shank": b.shank, "foot": b.foot_length,
-        }
+        length_of = segment_lengths(b)
         for seg, (a, c) in SEGMENT_ENDPOINTS.items():
             lengths = np.linalg.norm(lm[c] - lm[a], axis=-1)
             np.testing.assert_allclose(lengths, length_of[seg], atol=TOL)
@@ -144,3 +142,17 @@ def test_array_angles_match_scalar_calls(body):
             **{k: float(v[i]) for k, v in angles.as_dict().items()}))
         for name in LANDMARKS:
             np.testing.assert_allclose(batch[name][i], single[name], atol=TOL)
+
+
+def test_lumbar_flexion_bends_only_the_thorax(body):
+    straight = forward_kinematics(body, JointAngles(hip_flexion=20))
+    bent = forward_kinematics(body, JointAngles(hip_flexion=20, lumbar_flexion=30))
+    # pelvis and below unchanged
+    for name in ("ankle", "knee", "hip", "lumbar"):
+        np.testing.assert_allclose(bent[name], straight[name], atol=TOL)
+    # thorax leans 30 deg further than the pelvis
+    pelvis = bent["lumbar"] - bent["hip"]
+    thorax = bent["neck"] - bent["lumbar"]
+    assert np.degrees(np.arctan2(thorax[0], thorax[1])) == pytest.approx(50.0)
+    assert np.degrees(np.arctan2(pelvis[0], pelvis[1])) == pytest.approx(20.0)
+    assert np.linalg.norm(pelvis) == pytest.approx(body.pelvis)

@@ -4,9 +4,14 @@ The chain is rooted at a flat foot on the floor:
 
     foot (heel .. toe, on the floor)
       -> ankle (lateral malleolus height above the floor)
-        -> knee -> hip -> C7 ("neck") -> vertex
-                          shoulder (on the trunk line, below C7)
-                            -> elbow -> wrist -> hand (3rd metacarpal head)
+        -> knee -> hip -> lumbar (navel level) -> C7 ("neck") -> vertex
+                                   shoulder (on the thorax line, below C7)
+                                     -> elbow -> wrist -> hand (3rd metacarpal head)
+
+The trunk is two rigid segments: the pelvis (hips to navel level) and the
+thorax (navel level to C7), joined at a single lumbar joint. Real lumbar
+flexion is spread over five vertebrae; one joint at the navel is the
+simplest split that matches de Leva's segment data.
 
 Left and right sides overlap in a side view, so there is one leg and one
 arm, each carrying the mass of both sides (see core/balance.py).
@@ -31,7 +36,7 @@ from exercise_quality.core.geometry import (
 )
 
 LANDMARKS = (
-    "heel", "toe", "ankle", "knee", "hip", "neck", "vertex",
+    "heel", "toe", "ankle", "knee", "hip", "lumbar", "neck", "vertex",
     "shoulder", "elbow", "wrist", "hand",
 )
 
@@ -39,7 +44,8 @@ LANDMARKS = (
 # matters: de Leva measures each centre of mass from the origin.
 SEGMENT_ENDPOINTS = {
     "head": ("vertex", "neck"),
-    "trunk": ("neck", "hip"),
+    "thorax": ("neck", "lumbar"),
+    "pelvis": ("lumbar", "hip"),
     "upper_arm": ("shoulder", "elbow"),
     "forearm": ("elbow", "wrist"),
     "hand": ("wrist", "hand"),
@@ -50,7 +56,7 @@ SEGMENT_ENDPOINTS = {
 
 CONNECTIONS = (
     ("heel", "toe"), ("heel", "ankle"), ("ankle", "toe"),
-    ("ankle", "knee"), ("knee", "hip"), ("hip", "neck"), ("neck", "vertex"),
+    ("ankle", "knee"), ("knee", "hip"), ("hip", "lumbar"), ("lumbar", "neck"), ("neck", "vertex"),
     ("shoulder", "elbow"), ("elbow", "wrist"), ("wrist", "hand"),
 )
 
@@ -61,16 +67,16 @@ class JointAngles:
 
     ankle_dorsiflexion: shank tilting forward over a flat foot.
     knee_flexion: knee bending (0 straight).
-    hip_flexion: angle between the thigh and the trunk line, 0 when they
-        are in line. The trunk is one rigid segment from the hip joints
-        to C7, so this includes lumbar and pelvic motion as well as true
-        hip flexion.
-    neck_flexion: head tilting forward relative to the trunk (negative
+    hip_flexion: pelvis tipping forward relative to the thigh (true hip
+        flexion, pelvis vs femur).
+    neck_flexion: head tilting forward relative to the thorax (negative
         is extension, for example looking ahead while the trunk leans).
-    shoulder_flexion: upper arm raised forward relative to the trunk
-        (90 = perpendicular to the trunk, pointing forward).
+    shoulder_flexion: upper arm raised forward relative to the thorax
+        (90 = perpendicular to the thorax, pointing forward).
     elbow_flexion: forearm bending forward/up from the upper arm.
     wrist_flexion: hand relative to the forearm.
+    lumbar_flexion: thorax bending forward relative to the pelvis
+        (rounding the lower back; negative is extension).
     """
 
     ankle_dorsiflexion: float = 0.0
@@ -80,6 +86,7 @@ class JointAngles:
     shoulder_flexion: float = 0.0
     elbow_flexion: float = 0.0
     wrist_flexion: float = 0.0
+    lumbar_flexion: float = 0.0
 
     def as_dict(self):
         return {f.name: getattr(self, f.name) for f in fields(self)}
@@ -88,22 +95,24 @@ class JointAngles:
 def segment_orientations(angles):
     """Absolute segment angles (degrees) from joint angles.
 
-    Leg, trunk and head: inclination from vertical-up, positive = leaning
+    Leg, pelvis, thorax and head: inclination from vertical-up, positive = leaning
     forward. Arm segments: angle from vertical-down, positive = swung
     forward.
     """
     a = angles
     shank = np.asarray(a.ankle_dorsiflexion, dtype=float)
     thigh = shank - a.knee_flexion
-    trunk = thigh + a.hip_flexion
-    head = trunk + a.neck_flexion
-    # Hanging along a forward-leaning trunk means pointing down and
+    pelvis = thigh + a.hip_flexion
+    thorax = pelvis + a.lumbar_flexion
+    head = thorax + a.neck_flexion
+    # Hanging along a forward-leaning thorax means pointing down and
     # backwards, i.e. a negative angle from vertical-down.
-    upper_arm = a.shoulder_flexion - trunk
+    upper_arm = a.shoulder_flexion - thorax
     forearm = upper_arm + a.elbow_flexion
     hand = forearm + a.wrist_flexion
     return {
-        "shank": shank, "thigh": thigh, "trunk": trunk, "head": head,
+        "shank": shank, "thigh": thigh, "pelvis": pelvis, "thorax": thorax,
+        "head": head,
         "upper_arm": upper_arm, "forearm": forearm, "hand": hand,
     }
 
@@ -125,18 +134,28 @@ def forward_kinematics(body, angles):
 
     knee = ankle + body.shank * up_vector(o["shank"])
     hip = knee + body.thigh * up_vector(o["thigh"])
-    trunk_up = up_vector(o["trunk"])
-    neck = hip + body.trunk * trunk_up
+    lumbar = hip + body.pelvis * up_vector(o["pelvis"])
+    thorax_up = up_vector(o["thorax"])
+    neck = lumbar + body.thorax * thorax_up
     vertex = neck + body.head * up_vector(o["head"])
-    shoulder = neck - body.shoulder_drop * trunk_up
+    shoulder = neck - body.shoulder_drop * thorax_up
     elbow = shoulder + body.upper_arm * down_vector(o["upper_arm"])
     wrist = elbow + body.forearm * down_vector(o["forearm"])
     hand = wrist + body.hand * down_vector(o["hand"])
 
     return {
         "heel": heel, "toe": toe, "ankle": ankle, "knee": knee, "hip": hip,
-        "neck": neck, "vertex": vertex, "shoulder": shoulder,
+        "lumbar": lumbar, "neck": neck, "vertex": vertex, "shoulder": shoulder,
         "elbow": elbow, "wrist": wrist, "hand": hand,
+    }
+
+
+def segment_lengths(body):
+    """Length of every segment in SEGMENT_ENDPOINTS, in metres."""
+    return {
+        "head": body.head, "thorax": body.thorax, "pelvis": body.pelvis,
+        "upper_arm": body.upper_arm, "forearm": body.forearm, "hand": body.hand,
+        "thigh": body.thigh, "shank": body.shank, "foot": body.foot_length,
     }
 
 
@@ -165,7 +184,8 @@ def measure_joint_angles(landmarks):
     foot = np.degrees(np.arctan2(heel_to_toe[..., 1], heel_to_toe[..., 0]))
     shank = incl("ankle", "knee")
     thigh = incl("knee", "hip")
-    trunk = incl("hip", "neck")
+    pelvis = incl("hip", "lumbar")
+    thorax = incl("lumbar", "neck")
     head = incl("neck", "vertex")
     upper_arm = arm("shoulder", "elbow")
     forearm = arm("elbow", "wrist")
@@ -174,12 +194,15 @@ def measure_joint_angles(landmarks):
     return {
         "ankle_dorsiflexion": w(shank + foot),
         "knee_flexion": w(shank - thigh),
-        "hip_flexion": w(trunk - thigh),
-        "neck_flexion": w(head - trunk),
-        "shoulder_flexion": w(upper_arm + trunk),
+        "hip_flexion": w(pelvis - thigh),
+        "lumbar_flexion": w(thorax - pelvis),
+        "neck_flexion": w(head - thorax),
+        "shoulder_flexion": w(upper_arm + thorax),
         "elbow_flexion": w(forearm - upper_arm),
         "wrist_flexion": w(hand - forearm),
-        "trunk_inclination": trunk,
+        # "trunk lean" in squat studies is the thorax against vertical
+        "trunk_inclination": thorax,
+        "pelvis_inclination": pelvis,
         "shank_inclination": shank,
         "thigh_inclination": thigh,
     }

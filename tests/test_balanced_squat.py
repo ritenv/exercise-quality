@@ -7,7 +7,7 @@ import pytest
 
 from exercise_quality.core import deleva
 from exercise_quality.core.sagittal_body import BodyPopulation
-from exercise_quality.core.sagittal_model import SEGMENT_ENDPOINTS
+from exercise_quality.core.sagittal_model import SEGMENT_ENDPOINTS, segment_lengths
 from exercise_quality.core.timing import RepTiming
 from exercise_quality.exercises.squat.balanced import (
     ARMS_FORWARD,
@@ -59,10 +59,7 @@ def test_reaches_requested_depth(rep):
 
 
 def test_segment_lengths_preserved(rep):
-    b = rep.body
-    lengths = {"head": b.head, "trunk": b.trunk, "upper_arm": b.upper_arm,
-               "forearm": b.forearm, "hand": b.hand, "thigh": b.thigh,
-               "shank": b.shank, "foot": b.foot_length}
+    lengths = segment_lengths(rep.body)
     for seg, (a, c) in SEGMENT_ENDPOINTS.items():
         d = np.linalg.norm(rep.landmarks[c] - rep.landmarks[a], axis=-1)
         np.testing.assert_allclose(d, lengths[seg], atol=1e-9)
