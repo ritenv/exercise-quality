@@ -28,6 +28,18 @@ SOURCES = {
         "How are squat timing and kinematics in the sagittal plane related to "
         "squat depth? J Sports Sci Med. 2020;19:500-507."
     ),
+    "mata2021": (
+        "Mata AJ, Hayashi H, Moreno PA, Dudley RI, Sorenson EA. Hip flexion "
+        "angles during supine range of motion and bodyweight squats. Int J "
+        "Exerc Sci. 2021;14(1):912-918 (volume and pages as cited by Straub and "
+        "Powers 2024). doi:10.70252/LMEG8374"
+    ),
+    "straub2024": (
+        "Straub RK, Powers CM. A biomechanical review of the squat exercise: "
+        "implications for clinical practice. Int J Sports Phys Ther. "
+        "2024;19(4):490-501. doi:10.26603/001c.94600 (narrative review, used "
+        "for definitions and the hip end-range mechanism, not for numbers)"
+    ),
     "hemmerich2006": (
         "Hemmerich A, Brown H, Smith S, Marthandam SSK, Wyss UP. Hip, knee, and "
         "ankle kinematics of high range of motion activities of daily living. "
@@ -92,6 +104,8 @@ ZAWADKA_2020 = {
         "hip_rom": Measurement(98.61, 12.22, "zawadka2020", "hip ROM (pelvis-thigh)"),
         "lumbar_rom": Measurement(30.08, 14.44, "zawadka2020", "lumbar ROM"),
         "pelvis_rom": Measurement(22.61, 7.54, "zawadka2020", "pelvis tilt ROM"),
+        "pelvis_peak_time_pct": Measurement(70.25, float("nan"), "zawadka2020",
+                                            "median time of max pelvic tilt, % of descent"),
         "ankle_peak_time_pct": Measurement(90.17, float("nan"), "zawadka2020",
                                            "median time of max ankle angle, % of descent"),
         "knee_peak_time_pct": Measurement(98.83, float("nan"), "zawadka2020",
@@ -103,6 +117,8 @@ ZAWADKA_2020 = {
         "hip_rom": Measurement(99.58, 11.03, "zawadka2020", "hip ROM (pelvis-thigh)"),
         "lumbar_rom": Measurement(43.74, 15.31, "zawadka2020", "lumbar ROM"),
         "pelvis_rom": Measurement(19.61, 8.05, "zawadka2020", "pelvis tilt ROM"),
+        "pelvis_peak_time_pct": Measurement(62.33, float("nan"), "zawadka2020",
+                                            "median time of max pelvic tilt, % of descent"),
         "ankle_peak_time_pct": Measurement(86.75, float("nan"), "zawadka2020",
                                            "median time of max ankle angle, % of descent"),
         "knee_peak_time_pct": Measurement(98.92, float("nan"), "zawadka2020",
@@ -113,3 +129,16 @@ ZAWADKA_2020 = {
 # Hemmerich et al. 2006 abstract: squatting with heels up needed a mean
 # maximum knee flexion of 157 +- 6 deg (30 healthy Indian adults, 48 y).
 KNEE_FLEXION_MAX = Measurement(157.0, 6.0, "hemmerich2006", "max knee flexion, squat with heels up")
+
+# Mata et al. 2021. 28 adults (14 men, 14 women), 1.70 +- 0.11 m.
+# Bodyweight squats, feet flat. Angles at the moment posterior pelvic tilt
+# began. The paper gives means with 95% confidence intervals for left and
+# right sides; values here average the two sides, and the SD is recovered
+# from the CI half-width as half_width / t(0.975, 27) * sqrt(28).
+# The hip angle is absolute (anatomical zero), not relative to standing.
+MATA_2021 = {
+    "knee_at_ppt": Measurement(100.27, 14.8, "mata2021", "knee flexion when the pelvis starts tilting back"),
+    "ankle_at_ppt": Measurement(25.21, 5.2, "mata2021", "ankle dorsiflexion when the pelvis starts tilting back"),
+    "hip_at_ppt_absolute": Measurement(109.88, 8.7, "mata2021",
+                                       "hip flexion when the pelvis starts tilting back (absolute)"),
+}

@@ -18,7 +18,7 @@ import numpy as np
 
 from exercise_quality.core.dynamics import analyse_dynamics
 from exercise_quality.exercises.squat import literature as lit
-from exercise_quality.exercises.squat.balanced import generate_squat
+from exercise_quality.exercises.squat.balanced import generate_feasible_squat
 from exercise_quality.exercises.squat.protocols import sample_style
 
 
@@ -49,6 +49,8 @@ def rep_metrics(seq, dyn=None):
     ankle = m["ankle_dorsiflexion"][w]
     trunk = m["trunk_inclination"][w]
     hip = m["hip_flexion"][w]
+    pelvis = m["pelvis_inclination"][w]
+    lumbar = m["lumbar_flexion"][w]
     com_y = seq.com[w, 1]
     cop = dyn.cop_fraction[w]
 
@@ -77,14 +79,21 @@ def rep_metrics(seq, dyn=None):
         "hip_rom": float(hip.max() - hip[0]),
         "knee_rom": float(knee.max() - knee[0]),
         "ankle_rom": float(ankle.max() - ankle[0]),
+        "pelvis_rom": float(pelvis.max() - pelvis[0]),
+        "lumbar_rom": float(lumbar.max() - lumbar[0]),
+        "knee_at_ppt": float(knee[int(np.argmax(pelvis))]),
+        "ankle_at_ppt": float(ankle[int(np.argmax(pelvis))]),
+        "pelvis_tilts_back": bool(pelvis.max() - pelvis[-1] > 1.0),
         "trunk_peak_ms": peak_ms(trunk),
         "hip_peak_ms": peak_ms(hip),
         "knee_peak_ms": peak_ms(knee),
         "ankle_peak_ms": peak_ms(ankle),
         "ankle_peak_time_pct": peak_pct(ankle),
         "knee_peak_time_pct": peak_pct(knee),
+        "pelvis_peak_time_pct": peak_pct(pelvis),
         "cop_max_offset_m": dyn.max_cop_offset,
         "feasible": seq.is_feasible and dyn.stays_on_foot,
+        "depth_limited": "depth_limited_by_mobility" in seq.notes,
     }
 
 
@@ -102,13 +111,18 @@ class Cohort:
     def feasible_share(self):
         return float(np.mean([m["feasible"] for m in self.metrics]))
 
+    @property
+    def depth_limited_share(self):
+        return float(np.mean([m["depth_limited"] for m in self.metrics]))
 
-def simulate_cohort(population, protocol, n, seed=0, sex=None, female_share=0.5):
+
+def simulate_cohort(population, protocol, n, seed=0, sex=None, female_share=0.5,
+                    fps=100.0, **style_kwargs):
     rng = np.random.default_rng(seed)
     sexes, metrics = [], []
     for _ in range(n):
         body = population.sample(rng, sex=sex, female_share=female_share)
-        seq = generate_squat(body, sample_style(rng, body, protocol))
+        seq = generate_feasible_squat(body, sample_style(rng, body, protocol, **style_kwargs), fps=fps)
         sexes.append(body.sex)
         metrics.append(rep_metrics(seq))
     return Cohort(protocol, sexes, metrics)
@@ -153,47 +167,63 @@ def compare(cohort, references, sex=None, incomparable=None):
     return rows
 
 
-def zawadka_hip_plus_lumbar(sex):
-    """Model hip_flexion spans hip + lumbar motion; combine Zawadka's two."""
-    z = lit.ZAWADKA_2020[sex]
-    return lit.Measurement(
-        z["hip_rom"].mean + z["lumbar_rom"].mean,
-        float(np.hypot(z["hip_rom"].sd, z["lumbar_rom"].sd)),  # ignores covariance
-        "zawadka2020",
-        "hip + lumbar ROM (approximate SD, covariance unknown)",
-    )
+# What each compared metric is for the model: "input" rows check sampling,
+# "fitted" rows were used by scripts/calibrate_lumbopelvic.py, and
+# "prediction" rows were not used to set anything.
+KIND = {
+    ("ishida", "knee_peak"): "input",
+    ("ishida", "ankle_at_knee60"): "input (shape fitted)",
+    ("ishida", "ankle_at_knee90"): "input (shape fitted)",
+    ("ishida", "ankle_peak"): "input",
+    ("ishida", "trunk_at_knee60"): "prediction",
+    ("ishida", "trunk_at_knee90"): "prediction",
+    ("ishida", "trunk_peak"): "prediction",
+    ("ishida", "cop_fraction"): "input (measured dynamically)",
+    ("kasahara", "com_descent_pct_height"): "prediction",
+    ("kasahara", "com_ap_shift_pct_foot"): "input",
+    ("kasahara", "trunk_rom"): "prediction",
+    ("kasahara", "hip_rom"): "fitted",
+    ("kasahara", "knee_rom"): "input",
+    ("kasahara", "ankle_rom"): "input (from Ishida)",
+    ("kasahara", "trunk_peak_ms"): "prediction",
+    ("kasahara", "hip_peak_ms"): "prediction",
+    ("kasahara", "knee_peak_ms"): "prediction",
+    ("kasahara", "ankle_peak_ms"): "prediction",
+    ("zawadka", "knee_rom"): "input",
+    ("zawadka", "ankle_rom"): "cross-study check",
+    ("zawadka", "hip_rom"): "fitted",
+    ("zawadka", "pelvis_rom"): "fitted",
+    ("zawadka", "lumbar_rom"): "prediction",
+    ("zawadka", "pelvis_peak_time_pct"): "prediction",
+    ("zawadka", "ankle_peak_time_pct"): "prediction",
+    ("zawadka", "knee_peak_time_pct"): "prediction",
+    ("mata", "knee_at_ppt"): "prediction",
+    ("mata", "ankle_at_ppt"): "prediction",
+}
 
 
 def validation_report(population, n=200, seed=0):
-    """All comparisons used in docs/validation.md, as {title: rows}."""
+    """All comparisons used in docs/validation.md, as {title: (cohort, rows, study)}."""
     from exercise_quality.exercises.squat import protocols as p
 
     report = {}
     ishida = simulate_cohort(population, p.ISHIDA_PARALLEL, n, seed, sex="male")
     refs = {k: v for k, v in lit.ISHIDA_2025.items() if k != "ankle_peak_cued_forward"}
-    report["Ishida 2025, men, thighs parallel"] = (ishida, compare(ishida, refs))
+    report["Ishida 2025, men, thighs parallel"] = (ishida, compare(ishida, refs), "ishida")
 
     kasahara = simulate_cohort(population, p.KASAHARA_PARALLEL, n, seed + 1)
     report["Kasahara 2024, mixed, arms crossed, parallel"] = (
-        kasahara, compare(kasahara, lit.KASAHARA_2024, incomparable={
-            "hip_rom": "study hip is pelvis vs thigh; model hip is rigid trunk vs "
-                       "thigh, which also contains lumbar and pelvic motion"}))
+        kasahara, compare(kasahara, lit.KASAHARA_2024), "kasahara")
 
     zawadka = simulate_cohort(population, p.ZAWADKA_MAX_DEPTH, n, seed + 2, female_share=1 / 3)
     for sex in ("male", "female"):
-        z = lit.ZAWADKA_2020[sex]
-        refs = {k: z[k] for k in ("knee_rom", "ankle_rom", "ankle_peak_time_pct",
-                                  "knee_peak_time_pct")}
-        rows = compare(zawadka, refs, sex=sex)
-        # The model's hip (rigid trunk vs thigh) should fall between the
-        # study's pelvis-thigh hip ROM and hip + lumbar ROM.
-        model_hip = zawadka.values("hip_rom", sex)
-        for bound, ref in (("lower bound", z["hip_rom"]),
-                           ("upper bound", zawadka_hip_plus_lumbar(sex))):
-            rows.append(ComparisonRow(
-                "hip_rom", f"model hip vs study {ref.what} ({bound})",
-                float(model_hip.mean()), float(model_hip.std(ddof=1)),
-                ref.mean, ref.sd, comparable=False,
-                note=f"{bound}: model hip should be above hip-only and below hip + lumbar"))
-        report[f"Zawadka 2020, {sex}, max depth, arms forward"] = (zawadka, rows)
+        report[f"Zawadka 2020, {sex}, max depth, arms forward"] = (
+            zawadka, compare(zawadka, lit.ZAWADKA_2020[sex], sex=sex), "zawadka")
+
+    # Mata 2021: mixed sexes, bodyweight squats to full depth with heels
+    # down. Simulated with the maximal-depth protocol, 50/50 sexes.
+    mata = simulate_cohort(population, p.ZAWADKA_MAX_DEPTH, n, seed + 3, female_share=0.5)
+    mata_refs = {k: v for k, v in lit.MATA_2021.items() if k != "hip_at_ppt_absolute"}
+    rows = compare(mata, mata_refs)
+    report["Mata 2021, mixed, full depth, moment the pelvis tilts back"] = (mata, rows, "mata")
     return report

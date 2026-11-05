@@ -41,6 +41,32 @@ ANKLE_SHIFT_CORRELATION = 0.398
 # gives group means only.
 ANKLE_COUPLING = (1.27, 0.1)
 
+# Lumbopelvic rhythm and hip limit. Before the hip runs out of flexion the
+# hip takes PELVIS_SHARE of the thigh-to-thorax flexion and the lumbar
+# spine the rest; at the hip limit (relative to standing) the pelvis is
+# carried back by the thigh. No study reports these two directly, so their means
+# are FITTED to pelvis and hip measurements (Zawadka pelvis peak and hip
+# ROM, Kasahara hip ROM) by scripts/calibrate_lumbopelvic.py; see
+# docs/validation.md. Lumbar flexion, trunk lean and the timing of the
+# pelvic tilt are then predictions. The hip limit spread is Mata 2021's
+# between-subject SD; the pelvis share spread is an ASSUMPTION.
+# First fit (hard stop, 80 people per cohort, 6 x 9 grid): share 1.0, limit 90 deg;
+# all five target |z| < 0.9, and the cost rises steeply below a share of
+# 0.9 (2.1 at 1.0, 4.7 at 0.8, 18.7 at 0.6). So the data favour a lower
+# back that stays near neutral until the hip runs out, with lumbar
+# flexion coming after, matching Mata's account of posterior pelvic tilt
+# as a compensation. Mata's 110 deg is an absolute angle; 90 deg relative
+# to standing implies about 20 deg of hip flexion in marker-based standing
+# posture, which is plausible but not verified. The 0.05 spread in the
+# share (clipped at 1) is an ASSUMPTION.
+PELVIS_SHARE = (1.0, 0.05)
+HIP_LIMIT = (85.0, lit.MATA_2021["hip_at_ppt_absolute"].sd)
+# Soft end range (second fit, gain x onset grid with Kasahara's hip timing
+# added): gain 0.1 at 85 deg, cost 2.22, all six targets |z| < 1. The
+# data constrain the pair along a ridge (gain 0.1-0.3 with onset 85-75
+# deg all cost 2.2-2.4), so neither value is pinned down on its own.
+HIP_END_RANGE_GAIN = 0.1
+
 # How much of the trunk lean the head follows (0 = head stays upright,
 # 1 = head in line with the trunk). ASSUMPTION, no data used.
 HEAD_FOLLOW_RANGE = (0.3, 0.7)
@@ -99,23 +125,28 @@ def _normal(rng, mean_sd, lo=-np.inf, hi=np.inf):
     return float(np.clip(rng.normal(mean, sd), lo, hi))
 
 
-def sample_limits(rng):
+def sample_limits(rng, hip_limit=HIP_LIMIT, hip_gain=None):
     """Person-specific joint limits.
 
     Knee: Hemmerich 2006 maximum knee flexion in a heels-up squat.
-    Ankle and hip(+lumbar): generous caps (ASSUMPTION). The sampled ankle
-    ratio already reflects the mobility of the real people it came from,
-    so no extra ankle restriction is added by default.
+    Hip: fitted mean (see HIP_LIMIT) with Mata 2021's spread.
+    Ankle and lumbar: generous caps (ASSUMPTION). The sampled ankle ratio
+    already reflects the mobility of the real people it came from, so no
+    extra ankle restriction is added by default.
     """
     knee = _normal(rng, (lit.KNEE_FLEXION_MAX.mean, lit.KNEE_FLEXION_MAX.sd), 140, 170)
-    return JointLimits(ankle_dorsiflexion=45.0, knee_flexion=knee, hip_flexion=150.0)
+    hip = _normal(rng, hip_limit, 70, 130)
+    gain = HIP_END_RANGE_GAIN if hip_gain is None else hip_gain
+    return JointLimits(ankle_dorsiflexion=45.0, knee_flexion=knee, hip_flexion=hip,
+                       hip_end_range_gain=gain, lumbar_flexion=70.0)
 
 
-def sample_style(rng, body, protocol=ISHIDA_PARALLEL):
+def sample_style(rng, body, protocol=ISHIDA_PARALLEL,
+                 pelvis_share=PELVIS_SHARE, hip_limit=HIP_LIMIT, hip_gain=None):
     knee_dist = protocol.knee_peak
     if isinstance(knee_dist, dict):
         knee_dist = knee_dist[body.sex]
-    limits = sample_limits(rng)
+    limits = sample_limits(rng, hip_limit, hip_gain)
     knee_peak = _normal(rng, knee_dist, 60.0, 170.0)
     if protocol.depth_is_maximal:
         # a maximal squat cannot go past the person's own knee limit
@@ -153,6 +184,7 @@ def sample_style(rng, body, protocol=ISHIDA_PARALLEL):
         ankle_knee_ratio=ratio,
         ankle_coupling=_normal(rng, ANKLE_COUPLING, 1.0, 1.6),
         head_follow=float(rng.uniform(*HEAD_FOLLOW_RANGE)),
+        pelvis_share=_normal(rng, pelvis_share, 0.5, 1.0),
         arms=protocol.arms,
         com_target_bottom=bottom,
         com_target_shift=shift,

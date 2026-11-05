@@ -27,7 +27,7 @@ moves away from the centre of mass because of accelerations.
 Where the defaults come from is documented in docs/model.md.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 
@@ -77,13 +77,20 @@ ARMS_HANGING = ArmPosture("trunk", 0.0, 0.0)
 class JointLimits:
     """Largest angles the person can reach (degrees).
 
-    Defaults are generous caps for catching impossible poses. Person-
-    specific values are sampled in exercises/squat/protocols.py.
+    hip_flexion is the hip angle (pelvis vs thigh, relative to standing)
+    at which posterior pelvic tilt begins, Mata et al.'s measured
+    quantity. Past it the hip only takes ``hip_end_range_gain`` of any
+    further flexion and the pelvis tilts back. Both defaults are fitted
+    population means (scripts/calibrate_lumbopelvic.py). The other values
+    are caps that flag impossible poses. Person-specific values are
+    sampled in protocols.py.
     """
 
     ankle_dorsiflexion: float = 45.0
     knee_flexion: float = 157.0
-    hip_flexion: float = 150.0
+    hip_flexion: float = 85.0
+    hip_end_range_gain: float = 0.1
+    lumbar_flexion: float = 70.0
 
 
 @dataclass(frozen=True)
@@ -93,6 +100,9 @@ class SquatStyle:
     peak_knee_flexion: float = 120.0
     ankle_knee_ratio: float = 0.28
     ankle_coupling: float = 1.27
+    # Lumbopelvic rhythm: share of the total thigh-to-thorax flexion taken
+    # at the hip before the hip limit; the rest is lumbar flexion.
+    pelvis_share: float = 1.0
     head_follow: float = 0.5
     arms: ArmPosture = ARMS_CROSSED
     # Fraction of foot length from the heel that the centre of mass is
@@ -112,6 +122,8 @@ class SquatStyle:
             raise ValueError("peak_knee_flexion must be positive")
         if not 0.0 <= self.head_follow <= 1.5:
             raise ValueError("head_follow should be between 0 and 1.5")
+        if not 0.0 < self.pelvis_share <= 1.0:
+            raise ValueError("pelvis_share must be in (0, 1]")
         if self.ankle_coupling < 1.0:
             # below 1 the ankle would have infinite speed at the start
             raise ValueError("ankle_coupling must be at least 1")
@@ -153,12 +165,54 @@ class SquatSequence:
         return not self.flags
 
 
+# Width (degrees) over which the pelvis hands over from following the
+# thorax to being carried by the thigh. Smoothing avoids an instant change
+# in pelvic speed, which would show up as a spike in the dynamics.
+# ASSUMPTION: 8 deg; the hip still never exceeds its limit.
+HIP_LIMIT_BLEND_DEG = 8.0
+
+
+def smooth_min(a, b, width):
+    """min(a, b) with the corner rounded over ``width`` (C2 continuous).
+
+    Equal to the true minimum whenever |a - b| >= width and never above
+    it, so a limit expressed with it is never exceeded.
+    """
+    a = np.asarray(a, dtype=float)
+    b = np.asarray(b, dtype=float)
+    h = np.maximum(width - np.abs(a - b), 0.0) / width
+    return np.minimum(a, b) - h**3 * width / 6.0
+
+
 def pelvis_for_thorax(thorax, thigh, style):
     """Pelvis inclination given the thorax and thigh inclinations.
 
-    For now the spine is held rigid: the pelvis follows the thorax.
+    Before the hip reaches end range, the hip takes ``pelvis_share`` of
+    the total thigh-to-thorax flexion and the lumbar spine the rest
+    (lumbopelvic rhythm; share 1 keeps the spine neutral). Past the end
+    range onset ``limits.hip_flexion`` the hip keeps flexing, but only by
+    ``limits.hip_end_range_gain`` of what is asked of it, as tissue
+    compresses. The thigh therefore carries the pelvis into posterior
+    tilt and the rest of the forward lean needed for balance comes from
+    bending the lower back.
+
+    This follows Mata et al. (2021): posterior pelvic tilt began at the
+    same hip angle in squats as in passive supine hip flexion, i.e. when
+    hip flexion approached end range. The end range is soft rather than a
+    hard stop because measured hip flexion keeps rising until the bottom
+    of the squat (Kasahara et al. 2024) and is larger in deeper squats
+    (Zawadka et al. 2020 vs Kasahara). A constant rhythm before end range
+    and a constant gain past it are ASSUMPTIONS.
     """
-    return np.asarray(thorax, dtype=float) + 0.0 * thigh
+    thorax = np.asarray(thorax, dtype=float)
+    thigh = np.asarray(thigh, dtype=float)
+    limits = style.limits
+    # hip flexion the trunk would ask for with this lumbopelvic rhythm
+    # (exactly zero when standing)
+    demand = style.pelvis_share * (thorax - thigh)
+    past_end_range = limits.hip_flexion + limits.hip_end_range_gain * (demand - limits.hip_flexion)
+    hip = smooth_min(demand, past_end_range, HIP_LIMIT_BLEND_DEG)
+    return thigh + hip
 
 
 def _angles_for_trunk(ankle, knee, trunk, style):
@@ -293,8 +347,8 @@ def generate_squat(body, style=None, fps=100.0):
     landmarks = forward_kinematics(body, angles)
     com = centre_of_mass(body, landmarks)
 
-    if np.nanmax(angles.hip_flexion) > limits.hip_flexion:
-        flags.append("hip_beyond_limit")
+    if np.nanmax(angles.lumbar_flexion) > limits.lumbar_flexion:
+        flags.append("lumbar_beyond_limit")
 
     return SquatSequence(
         body=body,
@@ -308,6 +362,34 @@ def generate_squat(body, style=None, fps=100.0):
         balance_error=com[:, 0] - target_x,
         notes=tuple(notes),
     )
+
+
+# Problems that a real person would solve by not going as deep.
+MOBILITY_PROBLEMS = frozenset({"balance_unreachable", "lumbar_beyond_limit", "knee_beyond_limit"})
+
+
+def generate_feasible_squat(body, style=None, fps=100.0, min_knee_flexion=60.0, step=2.0):
+    """Like generate_squat, but a person who cannot reach the requested
+    depth squats as deep as their body allows instead.
+
+    Someone with stiff hips cannot reach parallel with heels down without
+    rounding their back past its limit or falling backwards; in real life
+    they stop higher. Depth is lowered in ``step`` degree increments until
+    the rep is feasible, and the rep is noted "depth_limited_by_mobility".
+    Problems that are not about mobility (an off-foot COM target) are
+    returned unchanged.
+    """
+    style = style or SquatStyle()
+    seq = generate_squat(body, style, fps)
+    if seq.is_feasible or not set(seq.flags) <= MOBILITY_PROBLEMS:
+        return seq
+    depths = list(np.arange(style.peak_knee_flexion - step, min_knee_flexion, -step))
+    for knee in depths + [min_knee_flexion]:
+        attempt = generate_squat(body, replace(style, peak_knee_flexion=float(knee)), fps)
+        if attempt.is_feasible:
+            attempt.notes = attempt.notes + ("depth_limited_by_mobility",)
+            return attempt
+    return seq
 
 
 def _fill_gaps(values):

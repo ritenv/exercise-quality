@@ -11,22 +11,24 @@ import sys
 import numpy as np
 
 from exercise_quality.core.sagittal_body import BodyPopulation
-from exercise_quality.exercises.squat.cohort import validation_report
+from exercise_quality.exercises.squat.cohort import KIND, validation_report
 
 
 def main(n):
     report = validation_report(BodyPopulation.load(), n=n)
-    for title, (cohort, rows) in report.items():
+    for title, (cohort, rows, study) in report.items():
         print(f"\n### {title}\n")
         print(f"Simulated people: {len(cohort.metrics)}, feasible reps: "
-              f"{100 * cohort.feasible_share:.0f}%\n")
-        print("| Metric | Model mean (SD) | Published mean (SD) | z |")
-        print("|---|---|---|---|")
+              f"{100 * cohort.feasible_share:.0f}%, depth limited by mobility: "
+              f"{100 * cohort.depth_limited_share:.0f}%\n")
+        print("| Metric | Model mean (SD) | Published mean (SD) | z | Kind |")
+        print("|---|---|---|---|---|")
         for r in rows:
             pub_sd = "n/a" if not np.isfinite(r.published_sd) else f"{r.published_sd:.3g}"
             z = "n/a" if not np.isfinite(r.z) else f"{r.z:+.2f}"
+            kind = KIND.get((study, r.metric), "")
             print(f"| {r.what} | {r.model_mean:.3g} ({r.model_sd:.2g}) | "
-                  f"{r.published_mean:.3g} ({pub_sd}) | {z} |")
+                  f"{r.published_mean:.3g} ({pub_sd}) | {z} | {kind} |")
 
 
 if __name__ == "__main__":

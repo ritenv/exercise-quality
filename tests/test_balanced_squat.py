@@ -14,6 +14,7 @@ from exercise_quality.exercises.squat.balanced import (
     ARMS_HANGING,
     JointLimits,
     SquatStyle,
+    generate_feasible_squat,
     generate_squat,
 )
 
@@ -123,9 +124,50 @@ def test_knee_limit_is_flagged(body):
     assert "knee_beyond_limit" in seq.flags
 
 
-def test_hip_limit_is_flagged(body):
-    seq = generate_squat(body, SquatStyle(limits=JointLimits(hip_flexion=80.0)))
-    assert "hip_beyond_limit" in seq.flags
+def test_hard_hip_stop_tilts_the_pelvis_back(body):
+    """With no give past end range, the thigh carries the pelvis back and
+    the lower back bends instead (Mata et al. 2021)."""
+    seq = generate_squat(body, SquatStyle(
+        limits=JointLimits(hip_flexion=80.0, hip_end_range_gain=0.0)))
+    m = seq.measured()
+    assert m["hip_flexion"].max() <= 80.0 + 1e-9
+    bottom = int(np.argmax(m["knee_flexion"]))
+    pelvis = m["pelvis_inclination"][: bottom + 1]
+    assert pelvis.max() - pelvis[-1] > 5.0  # tilted back after its peak
+    assert m["lumbar_flexion"][bottom] > 20.0
+    assert "hip_beyond_limit" not in seq.flags
+
+
+def test_soft_end_range_lets_the_hip_creep_on(body):
+    """Past end range onset the hip keeps flexing slowly, so it peaks at
+    the bottom (as Kasahara measured) instead of plateauing early."""
+    seq = generate_squat(body, SquatStyle(
+        limits=JointLimits(hip_flexion=80.0, hip_end_range_gain=0.1)))
+    m = seq.measured()
+    bottom = int(np.argmax(m["knee_flexion"]))
+    assert 80.0 < m["hip_flexion"].max() < 90.0
+    assert int(np.argmax(m["hip_flexion"][: bottom + 1])) >= bottom - 1
+    pelvis = m["pelvis_inclination"][: bottom + 1]
+    assert pelvis.max() - pelvis[-1] > 3.0
+
+
+def test_lumbar_limit_is_flagged(body):
+    seq = generate_squat(body, SquatStyle(limits=JointLimits(
+        hip_flexion=60.0, hip_end_range_gain=0.0, lumbar_flexion=40.0)))
+    assert "lumbar_beyond_limit" in seq.flags
+
+
+def test_spine_stays_neutral_until_the_hip_limit_with_full_pelvis_share(body):
+    seq = generate_squat(body, SquatStyle(pelvis_share=1.0, limits=JointLimits(hip_flexion=140.0)))
+    np.testing.assert_allclose(seq.measured()["lumbar_flexion"], 0.0, atol=1e-6)
+
+
+def test_pelvis_share_splits_flexion_between_hip_and_spine(body):
+    seq = generate_squat(body, SquatStyle(pelvis_share=0.6, limits=JointLimits(hip_flexion=140.0)))
+    m = seq.measured()
+    total = m["hip_flexion"] + m["lumbar_flexion"]
+    moving = total > 1.0
+    np.testing.assert_allclose(m["hip_flexion"][moving] / total[moving], 0.6, atol=1e-6)
 
 
 def test_target_off_the_foot_is_flagged(body):
@@ -155,12 +197,31 @@ def test_tempo_does_not_change_quasi_static_path(body):
     assert peak_trunk(fast) == pytest.approx(peak_trunk(slow), abs=0.01)
 
 
-def test_many_real_bodies_are_feasible(population):
+def test_many_real_bodies_can_squat(population):
+    """Every real body produces a feasible rep, going shallower if its
+    mobility demands it, and most reach the requested depth."""
     rng = np.random.default_rng(11)
-    failures = []
+    failures, limited = [], 0
     for _ in range(60):
         b = population.sample(rng)
-        seq = generate_squat(b, SquatStyle(), fps=30)
+        seq = generate_feasible_squat(b, SquatStyle(), fps=30)
         if not seq.is_feasible:
             failures.append((b.subject_id, seq.flags))
+        limited += "depth_limited_by_mobility" in seq.notes
     assert not failures
+    assert limited / 60 < 0.25
+
+
+def test_stiff_hips_squat_shallower(body):
+    stiff = SquatStyle(limits=JointLimits(hip_flexion=55.0, hip_end_range_gain=0.0,
+                                          lumbar_flexion=40.0))
+    assert not generate_squat(body, stiff).is_feasible
+    seq = generate_feasible_squat(body, stiff)
+    assert seq.is_feasible
+    assert "depth_limited_by_mobility" in seq.notes
+    assert seq.angles.knee_flexion.max() < stiff.peak_knee_flexion
+
+
+def test_non_mobility_problems_are_not_hidden(body):
+    seq = generate_feasible_squat(body, SquatStyle(com_target_bottom=1.2, com_target_shift=0.0))
+    assert "com_target_outside_support" in seq.flags

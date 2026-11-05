@@ -65,19 +65,20 @@ def test_most_simulated_reps_are_feasible(ishida_cohort):
 
 
 def test_ishida_cohort_matches_published_means(ishida_cohort):
-    """Regression guard: the simulated cohort mean must stay within two
-    published between-subject SDs of each published mean. docs/validation.md
-    has the full numbers and the known gaps (peak trunk lean, COM descent,
-    timing), which this test deliberately does not hide by being loose:
-    those rows are checked separately below."""
+    """Regression guard on the Ishida comparison. Rows that match are held
+    to |z| < 1. Known gaps (docs/validation.md) get explicit bounds so
+    they cannot get worse unnoticed:
+      * peak trunk lean overshoots (people with stiff ankles lean too far)
+      * mean depth is low because those same people are depth limited
+    """
     refs = {k: v for k, v in lit.ISHIDA_2025.items() if k != "ankle_peak_cued_forward"}
     rows = {r.metric: r for r in compare(ishida_cohort, refs)}
-    for name in ("knee_peak", "ankle_at_knee60", "ankle_at_knee90", "ankle_peak",
+    for name in ("ankle_at_knee60", "ankle_at_knee90", "ankle_peak",
                  "trunk_at_knee60", "trunk_at_knee90", "cop_fraction"):
         assert abs(rows[name].z) < 1.0, (name, rows[name])
-    # Known gap: rigid trunk under-leans at the bottom. Keep it from
-    # getting worse without anyone noticing.
-    assert -1.5 < rows["trunk_peak"].z < 0.0
+    assert 0.0 < rows["trunk_peak"].z < 2.0
+    assert -2.0 < rows["knee_peak"].z < 0.5
+    assert ishida_cohort.depth_limited_share < 0.35
 
 
 def test_incomparable_metrics_have_no_z(ishida_cohort):
