@@ -65,6 +65,8 @@ HIP_JOINT_WIDTH_CORRELATION = 0.35
 # mass is used (core/deleva.py).
 EXTRA_LANDMARKS = ("mid_hip", "right_ear", "left_ear", "nose")
 LANDMARKS_3D = LANDMARKS + EXTRA_LANDMARKS
+# not landmarks: each leg plane's normal (the knee flexion axis), for joint angles
+LEG_NORMALS = ("right_leg_normal", "left_leg_normal")
 # Ears at 55% of the way from C7 to the vertex (as core/observed.py), the
 # nose 10 cm in front of the head axis at 50%: rough placements for the
 # tracker's head points (ASSUMPTION).
@@ -259,6 +261,7 @@ def forward_kinematics(body, angles, stance, progress=1.0, iterations=12):
         shank_dir = _scale(np.sin(b), u) + _scale(np.cos(b), v)
         lm[f"{side}_knee"] = ankle + _scale(np.full(shape, body.shank), shank_dir)
         lm[f"{side}_hip"] = hips[side]
+        lm[f"{side}_leg_normal"] = _unit(np.cross(u, v))     # knee flexion axis, towards +z
 
     mid = 0.5 * (hips["right"] + hips["left"])
     lateral = _unit(hips["right"] - hips["left"])
@@ -291,7 +294,7 @@ def forward_kinematics(body, angles, stance, progress=1.0, iterations=12):
                              + _sign(side) * 0.5 * body.head_breadth * lateral)
     head_forward = _scale(np.cos(np.radians(o["head"])), forward) - _scale(np.sin(np.radians(o["head"])), upward)
     lm["nose"] = lm["neck"] + NOSE_FRACTION * body.head * head_up + NOSE_FORWARD * head_forward
-    out = {name: lm[name] for name in LANDMARKS_3D}
+    out = {name: lm[name] for name in LANDMARKS_3D + LEG_NORMALS}
     out["leg_tilt_sin"] = np.stack([tilt["right"], tilt["left"]], axis=-1)
     return out
 
@@ -338,3 +341,51 @@ class Kinematics3D:
 
     def support_region(self, body):
         return support_region(body, self.stance)
+
+
+def _frame(lateral, up):
+    """Columns (lateral, anterior, up), orthonormal, from a lateral and a rough up axis."""
+    lateral = _unit(lateral)
+    up = _unit(up - np.sum(up * lateral, axis=-1, keepdims=True) * lateral)
+    anterior = np.cross(up, lateral)
+    return np.stack([lateral, anterior, up], axis=-1)
+
+
+def joint_angles_3d(landmarks):
+    """Hip angles as 3D motion capture reports them, and the knee's frontal-plane projection angle.
+
+    Hip: thigh relative to pelvis, Cardan sequence flexion (about the
+    lateral axis), then abduction (about the floating anterior axis), then
+    rotation (about the thigh's long axis), the default in Visual3D, as
+    used by Sinclair et al. 2022. Pelvis frame: lateral = left to right
+    hip joint centre, up = mid-hip to navel. Thigh frame: up = knee to
+    hip, lateral = the leg plane's normal (the knee flexion axis).
+    Positive: flexion, abduction, internal rotation, on both sides.
+
+    Knee frontal-plane projection angle (FPPA): seen from the front, how
+    far the knee bends inwards off the hip-ankle line, degrees; positive
+    = valgus (knee towards the midline), negative = knee outside the line.
+    0 when the leg is straight from the front. Meaningful part-way down
+    only: near parallel the thigh points at a front camera and its
+    projection shrinks to almost nothing.
+    """
+    pelvis = _frame(landmarks["right_hip"] - landmarks["left_hip"], landmarks["lumbar"] - landmarks["mid_hip"])
+    out = {}
+    for side in SIDES:
+        s = _sign(side)
+        thigh = _frame(landmarks[f"{side}_leg_normal"], landmarks[f"{side}_hip"] - landmarks[f"{side}_knee"])
+        r = np.swapaxes(pelvis, -1, -2) @ thigh
+        b = np.degrees(np.arcsin(np.clip(r[..., 0, 2], -1.0, 1.0)))
+        out[f"{side}_hip_flexion"] = np.degrees(np.arctan2(-r[..., 1, 2], r[..., 2, 2]))
+        out[f"{side}_hip_abduction"] = -s * b
+        out[f"{side}_hip_rotation"] = s * np.degrees(np.arctan2(-r[..., 0, 1], r[..., 0, 0]))
+        # frontal projection: (z, y) seen from the front
+        hip, knee, ankle = (landmarks[f"{side}_{n}"][..., [2, 1]] for n in ("hip", "knee", "ankle"))
+        up_thigh = np.degrees(np.arctan2(hip[..., 0] - knee[..., 0], hip[..., 1] - knee[..., 1]))
+        up_shank = np.degrees(np.arctan2(knee[..., 0] - ankle[..., 0], knee[..., 1] - ankle[..., 1]))
+        # valgus (knee towards the midline): the hip is further out from the
+        # knee than the knee from the ankle
+        out[f"{side}_knee_fppa"] = s * (up_thigh - up_shank)
+    for name in ("hip_flexion", "hip_abduction", "hip_rotation", "knee_fppa"):
+        out[name] = 0.5 * (out[f"right_{name}"] + out[f"left_{name}"])
+    return out

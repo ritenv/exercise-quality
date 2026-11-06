@@ -275,3 +275,23 @@ def sample_style(rng, body, protocol=ISHIDA_PARALLEL,
         timing=timing,
         limits=limits,
     )
+
+
+# Feet placement for 3D reps (core/model3d.Stance). Sinclair et al. 2022
+# (two papers, the same 70 male recreational lifters, barbell back squat
+# at 70% 1RM, self-selected stance): stance width between the feet's
+# centres of mass 1.23 +- 0.16 x greater trochanter width, and foot
+# placement angle 23.9 +- 6.9 deg, both pooled from their tertile groups
+# (lit.SINCLAIR_2022). Loaded lifters, not bodyweight squats of everyone:
+# an ASSUMPTION that people choose similar feet. ANSUR II hip breadth
+# stands in for the trochanter marker width (ASSUMPTION). The two are
+# drawn independently (no correlation reported).
+STANCE_WIDTH_RATIO = (lit.SINCLAIR_2022["stance_width_ratio"].mean, lit.SINCLAIR_2022["stance_width_ratio"].sd)
+TOE_OUT = (lit.SINCLAIR_2022["toe_out"].mean, lit.SINCLAIR_2022["toe_out"].sd)
+
+
+def sample_stance(rng):
+    from exercise_quality.core.model3d import Stance
+
+    return Stance(width_ratio=_normal(rng, STANCE_WIDTH_RATIO, 0.8, 2.0),
+                  toe_out=_normal(rng, TOE_OUT, 0.0, 45.0))

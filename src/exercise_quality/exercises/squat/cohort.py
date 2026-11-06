@@ -104,6 +104,33 @@ def rep_metrics(seq, dyn=None):
         "standing_cop_fraction": float(dyn.cop_fraction[0]),
         "feasible": seq.is_feasible and dyn.stays_on_foot,
         "depth_limited": "depth_limited_by_mobility" in seq.notes,
+        **(rep_metrics_3d(seq) if seq.is_3d else {}),
+    }
+
+
+def rep_metrics_3d(seq):
+    """Frontal-plane measures of a 3D rep, and what a side-view tracker would see of it."""
+    from exercise_quality.core.model3d import joint_angles_3d
+    from exercise_quality.core.observed import from_model_landmarks, observed_angles, segment_lengths
+
+    j = joint_angles_3d(seq.landmarks3d)
+    b = int(np.argmax(seq.angles.knee_flexion))
+    abduction = j["hip_abduction"]
+    track = from_model_landmarks(seq.landmarks, seq.fps)
+    seen_knee = observed_angles(track)["knee_flexion"]
+    thigh = segment_lengths(track)["thigh"]
+    at100 = int(np.argmax(seen_knee >= 100.0)) if seen_knee.max() >= 100.0 else None
+    return {
+        "stance_width_ratio": seq.style.stance.width_ratio,
+        "toe_out": seq.style.stance.toe_out,
+        "hip_abduction_standing": float(abduction[0]),
+        "hip_abduction_peak": float(abduction.max()),
+        "hip_abduction_rom": float(abduction.max() - abduction[0]),
+        "hip_rotation_at_bottom": float(j["hip_rotation"][b]),
+        "hip_flexion_3d_peak": float(j["hip_flexion"].max()),
+        "knee_fppa_at_knee60": float(j["knee_fppa"][int(np.argmax(seq.angles.knee_flexion >= 60.0))]),
+        # the side view sees the thigh foreshortened when the knees go out over the toes
+        "side_view_thigh_ratio_at_knee100": float(thigh[at100] / thigh[0]) if at100 is not None else np.nan,
     }
 
 
@@ -127,12 +154,27 @@ class Cohort:
 
 
 def simulate_cohort(population, protocol, n, seed=0, sex=None, female_share=0.5,
-                    fps=100.0, **style_kwargs):
+                    fps=100.0, three_d=False, **style_kwargs):
+    """``three_d``: the same people and styles (same random draws), each
+    with a sampled stance (protocols.sample_stance, from a separate random
+    stream), generated with the 3D model."""
+    from dataclasses import replace
+
+    from exercise_quality.core.model3d import make_body3d
+    from exercise_quality.exercises.squat.protocols import sample_stance
+
     rng = np.random.default_rng(seed)
+    stance_rng = np.random.default_rng([seed, 3])
     sexes, metrics = [], []
     for _ in range(n):
         body = population.sample(rng, sex=sex, female_share=female_share)
-        seq = generate_feasible_squat(body, sample_style(rng, body, protocol, **style_kwargs), fps=fps)
+        style = sample_style(rng, body, protocol, **style_kwargs)
+        if three_d:
+            index = next(i for i, r in enumerate(population._by_sex[body.sex])
+                         if r["subject_id"] == body.subject_id)
+            body = make_body3d(population, body.sex, index)
+            style = replace(style, stance=sample_stance(stance_rng))
+        seq = generate_feasible_squat(body, style, fps=fps)
         sexes.append(body.sex)
         metrics.append(rep_metrics(seq))
     return Cohort(protocol, sexes, metrics)
@@ -181,6 +223,8 @@ def compare(cohort, references, sex=None, incomparable=None):
 # "fitted" rows were used by scripts/calibrate_lumbopelvic.py, and
 # "prediction" rows were not used to set anything.
 KIND = {
+    ("sinclair", "hip_abduction_peak"): "prediction (stance sampled from the same study)",
+    ("sinclair", "hip_abduction_rom"): "prediction (stance sampled from the same study)",
     ("ishida", "knee_peak"): "input",
     ("ishida", "ankle_at_knee60"): "input + balance correction",
     ("ishida", "ankle_at_knee90"): "input + balance correction",
@@ -212,9 +256,16 @@ KIND = {
 }
 
 
-def validation_report(population, n=200, seed=0):
-    """All comparisons used in docs/validation.md, as {title: (cohort, rows, study)}."""
+def validation_report(population, n=200, seed=0, three_d=False):
+    """All comparisons used in docs/validation.md, as {title: (cohort, rows, study)}.
+
+    ``three_d`` runs the same cohorts with the 3D model and adds the
+    frontal-plane comparison with Sinclair 2022.
+    """
     from exercise_quality.exercises.squat import protocols as p
+
+    def simulate_cohort(*args, **kwargs):
+        return _simulate(*args, three_d=three_d, **kwargs)
 
     report = {}
     ishida = simulate_cohort(population, p.ISHIDA_PARALLEL, n, seed, sex="male")
@@ -236,4 +287,15 @@ def validation_report(population, n=200, seed=0):
     mata_refs = {k: v for k, v in lit.MATA_2021.items() if k != "hip_at_ppt_absolute"}
     rows = compare(mata, mata_refs)
     report["Mata 2021, mixed, full depth, moment the pelvis tilts back"] = (mata, rows, "mata")
+    if three_d:
+        # Sinclair 2022: 70 men, barbell at 70% 1RM, self-selected feet. Hip
+        # flexion there peaked near 98 deg, so the Kasahara parallel protocol
+        # (men) is the closest bodyweight match; the load is not modelled.
+        sinclair = simulate_cohort(population, p.KASAHARA_PARALLEL, n, seed + 4, sex="male")
+        refs = {k: lit.SINCLAIR_2022[k] for k in ("hip_abduction_peak", "hip_abduction_rom")}
+        report["Sinclair 2022, men, self-selected feet (frontal plane)"] = (
+            sinclair, compare(sinclair, refs), "sinclair")
     return report
+
+
+_simulate = simulate_cohort

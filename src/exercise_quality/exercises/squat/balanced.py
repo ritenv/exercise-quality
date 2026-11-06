@@ -171,7 +171,7 @@ class SquatSequence:
 
     @property
     def support(self):
-        return support_region(self.body)
+        return _support(self.body, self.style)
 
     @property
     def fps(self):

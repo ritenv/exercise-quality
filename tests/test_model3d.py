@@ -108,3 +108,28 @@ def test_bodies_are_plausible_and_reproducible(population):
 def test_style_without_stance_is_unchanged(body):
     seq = generate_squat(body.sagittal, replace(SquatStyle(), stance=None), fps=30.0)
     assert not seq.is_3d and seq.landmarks3d is None
+
+
+def test_hip_angles_and_frontal_knee_angle(body):
+    from exercise_quality.core.model3d import joint_angles_3d
+
+    under = joint_angles_3d(rep(body, M.Stance().under_hips(body)).landmarks3d)
+    assert abs(under["hip_abduction"][0]) < 1e-6 and abs(under["knee_fppa"][0]) < 1e-6
+    wide_seq = rep(body, M.Stance(width_ratio=1.4, toe_out=0.0))
+    wide = joint_angles_3d(wide_seq.landmarks3d)
+    lm = {k: v[0] for k, v in wide_seq.landmarks3d.items()}
+    lean = np.degrees(np.arctan2(lm["right_ankle"][2] - lm["right_hip"][2], lm["right_hip"][1] - lm["right_ankle"][1]))
+    assert wide["right_hip_abduction"][0] == pytest.approx(lean, abs=0.5)
+    assert wide["left_hip_abduction"][0] == pytest.approx(wide["right_hip_abduction"][0], abs=1e-9)
+    # 3D hip flexion at the bottom is close to the in-plane value with straight feet
+    seq = rep(body, M.Stance(width_ratio=1.0, toe_out=0.0))
+    j = joint_angles_3d(seq.landmarks3d)
+    b = int(np.argmax(seq.angles.knee_flexion))
+    assert j["hip_flexion"][b] == pytest.approx(seq.measured()["hip_flexion"][b], abs=3.0)
+    # part-way down: knees out over turned-out toes read negative, caved-in knees positive
+    out_seq = rep(body, M.Stance(toe_out=25.0))
+    in_seq = rep(body, M.Stance(toe_out=25.0, knee_track_right=35.0, knee_track_left=35.0))
+    i = int(np.argmax(out_seq.angles.knee_flexion >= 60.0))
+    assert joint_angles_3d(out_seq.landmarks3d)["knee_fppa"][i] < 0.0
+    assert (joint_angles_3d(in_seq.landmarks3d)["knee_fppa"][i]
+            > joint_angles_3d(out_seq.landmarks3d)["knee_fppa"][i] + 5.0)

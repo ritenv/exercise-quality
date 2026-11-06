@@ -1,6 +1,6 @@
 """Compare simulated cohorts with published squat studies.
 
-    PYTHONPATH=src python scripts/validate_against_literature.py [n_per_cohort]
+    PYTHONPATH=src python scripts/validate_against_literature.py [n_per_cohort] [--3d]
 
 Prints one markdown table per study. z is (model mean - published mean)
 divided by the published between-subject SD.
@@ -15,8 +15,8 @@ from exercise_quality.exercises.squat import literature as lit
 from exercise_quality.exercises.squat.cohort import KIND, validation_report
 
 
-def main(n):
-    report = validation_report(BodyPopulation.load(), n=n)
+def main(n, three_d=False):
+    report = validation_report(BodyPopulation.load(), n=n, three_d=three_d)
     for title, (cohort, rows, study) in report.items():
         print(f"\n### {title}\n")
         print(f"Simulated people: {len(cohort.metrics)}, feasible reps: "
@@ -39,4 +39,5 @@ def main(n):
 
 
 if __name__ == "__main__":
-    main(int(sys.argv[1]) if len(sys.argv) > 1 else 200)
+    args = [a for a in sys.argv[1:] if a != "--3d"]
+    main(int(args[0]) if args else 200, three_d="--3d" in sys.argv)

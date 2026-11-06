@@ -12,6 +12,11 @@ says what was measured so comparisons stay honest.
 from dataclasses import dataclass
 
 SOURCES = {
+    "sinclair2022": (
+        "Sinclair J, Taylor PJ, et al. 2022. Habitual and manipulated foot placement "
+        "angles (PMC9501107) and stance widths (PMC9503729) in the barbell back squat, "
+        "70 male lifters at 70% 1RM. Sports (MDPI)."
+    ),
     "ishida2025": (
         "Ishida T, Ueno R, Kitamura Y, Yamakawa Y, Samukawa M, Tohyama H. "
         "The effect of real-time feedback regarding the center-of-pressure "
@@ -153,3 +158,24 @@ MATA_2021 = {
 # lay between 31% and 58% of foot length from the heel. Only the range is
 # reported.
 QUIET_STANDING_COP_RANGE = (0.31, 0.58)
+
+
+# Sinclair J, Taylor PJ, Shadwell G, Stone M, Booth N, Jones B, Finlay S,
+# Ali AM et al. 2022. Two papers on the same 70 male recreational lifters
+# squatting a barbell at 70% of their 1RM with self-selected feet,
+# Visual3D Cardan angles:
+#   "Two-Experiment Examination of Habitual and Manipulated Foot Placement
+#   Angles..." Sports (Basel)/MDPI 2022 (PMC9501107), and
+#   "A Multi-Experiment Investigation of the Effects Stance Width on the
+#   Biomechanics of the Barbell Squat" Sports 10(9):136 (PMC9503729).
+# Each paper reports tertile groups; the values below are pooled (mean of
+# group means weighted by n, SD from within- plus between-group
+# variance). Stance width: distance between the feet's segment centres
+# of mass over greater trochanter marker width. Hip abduction: peak and
+# range in the foot-angle paper (signs flipped to abduction positive).
+SINCLAIR_2022 = {
+    "stance_width_ratio": Measurement(1.23, 0.16, "sinclair2022", "stance width / greater trochanter width"),
+    "toe_out": Measurement(23.9, 6.9, "sinclair2022", "foot placement angle, deg"),
+    "hip_abduction_peak": Measurement(28.5, 8.2, "sinclair2022", "peak hip abduction, deg"),
+    "hip_abduction_rom": Measurement(18.2, 7.7, "sinclair2022", "hip abduction range during the squat, deg"),
+}
