@@ -26,7 +26,8 @@ PYTHONPATH=src python scripts/plot_squat_gallery.py           # 12 people at the
 PYTHONPATH=src python scripts/plot_squat_curves.py            # angles, COM, COP over time
 PYTHONPATH=src python scripts/render_filmstrip.py 5 zawadka2020_max_depth out.png  # one rep as stills
 PYTHONPATH=src python scripts/validate_against_literature.py  # tables in docs/validation.md
-PYTHONPATH=src python scripts/calibrate_lumbopelvic.py        # refit hip end range (slow)
+PYTHONPATH=src python scripts/calibrate_lumbopelvic.py        # refit hip end range (parallel, ~1 min)
+PYTHONPATH=src python scripts/stress_test.py 1500              # check 1500 reps for spikes, falls, outliers
 ```
 
 ```python

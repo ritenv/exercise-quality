@@ -250,3 +250,17 @@ def test_unprefixed_limb_angle_is_the_mean_of_both_sides():
         S(knee=10)
     with pytest.raises(ValueError):
         JointAngles(stance="middle")
+
+
+def test_symmetric_shortcut_matches_the_general_chain(body):
+    """forward_kinematics copies the stance side when both sides share one
+    angles object. Equal but separate objects take the general path, and
+    the two must agree."""
+    shared = S(knee_flexion=70, hip_flexion=40, ankle_dorsiflexion=20, toe_extension=15,
+               shoulder_flexion=60, elbow_flexion=30)
+    leg = LegAngles(hip_flexion=40, knee_flexion=70, ankle_dorsiflexion=20, toe_extension=15)
+    arm = ArmAngles(shoulder_flexion=60, elbow_flexion=30)
+    separate = JointAngles(leg, LegAngles(**vars(leg)), arm, ArmAngles(**vars(arm)))
+    a, b = forward_kinematics(body, shared), forward_kinematics(body, separate)
+    for name in LANDMARKS:
+        np.testing.assert_allclose(a[name], b[name], atol=TOL)
