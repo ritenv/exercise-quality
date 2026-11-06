@@ -60,25 +60,20 @@ ANKLE_COUPLING = (1.27, 0.1)
 # docs/validation.md. Lumbar flexion, trunk lean and the timing of the
 # pelvic tilt are then predictions. The hip limit spread is Mata 2021's
 # between-subject SD; the pelvis share spread is an ASSUMPTION.
-# First fit (hard stop, 80 people per cohort, 6 x 9 grid): share 1.0, limit 90 deg;
-# all five target |z| < 0.9, and the cost rises steeply below a share of
-# 0.9 (2.1 at 1.0, 4.7 at 0.8, 18.7 at 0.6). So the data favour a lower
-# back that stays near neutral until the hip runs out, with lumbar
-# flexion coming after, matching Mata's account of posterior pelvic tilt
-# as a compensation. Mata's 110 deg is an absolute angle; 90 deg relative
-# to standing implies about 20 deg of hip flexion in marker-based standing
-# posture, which is plausible but not verified. The 0.05 spread in the
-# share (clipped at 1) is an ASSUMPTION.
-PELVIS_SHARE = (1.0, 0.05)
-HIP_LIMIT = (97.5, lit.MATA_2021["hip_at_ppt_absolute"].sd)
-# Soft end range, current fit (scripts/calibrate_lumbopelvic.py): gain 0.1
-# at 97.5 deg, cost 1.23, all six targets |z| < 0.8. Earlier fits landed at
-# 85-90 deg; they used an 8 deg end-range blend (since widened to 25 deg
-# to remove force spikes) and Kasahara's hip ROM as a target (dropped once
-# the Kasahara protocol took Ishida's parallel depth, see the calibration
-# script). Onset 97.5 deg relative to standing vs Mata's absolute 110 deg
-# implies about 12 deg of hip flexion in marker-based standing posture
-# (not verified).
+# Fitted together with the hip end range (see HIP_LIMIT below): 0.9. The
+# very first fit, under a hard hip stop, had put it at 1.0 (neutral lower
+# back until end range). The 0.05 spread (clipped at 1) is an ASSUMPTION.
+PELVIS_SHARE = (0.9, 0.05)
+HIP_LIMIT = (105.0, lit.MATA_2021["hip_at_ppt_absolute"].sd)
+# Current fit (scripts/calibrate_lumbopelvic.py, share x gain x onset grid,
+# then checked past the grid edge): share 0.9, gain 0.1, onset 105 deg,
+# cost 0.25, all six targets |z| < 0.35 (107.5 deg: 0.30, 110 deg: 0.41).
+# Letting the lower back take about 10% of the flexion before end range
+# resolved the tension earlier fits had between pelvis tilt, hip ROM and
+# Mata's onset. Earlier fits (onset 85-97.5 deg) used an 8 deg end-range
+# blend, a fixed share of 1.0, or Kasahara's hip ROM as a target. Onset
+# 105 deg relative to standing vs Mata's absolute 110 deg implies about
+# 5 deg of hip flexion in marker-based standing posture (not verified).
 HIP_END_RANGE_GAIN = 0.1
 
 # Preferred trunk lean (deg) at Ishida's peak knee angle: the published

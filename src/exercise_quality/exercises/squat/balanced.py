@@ -89,7 +89,7 @@ class JointLimits:
 
     ankle_dorsiflexion: float = 45.0
     knee_flexion: float = 157.0
-    hip_flexion: float = 97.5
+    hip_flexion: float = 105.0
     hip_end_range_gain: float = 0.1
     lumbar_flexion: float = 70.0
 
@@ -111,7 +111,7 @@ class SquatStyle:
     ankle_compensation_share: float = 0.5
     # Lumbopelvic rhythm: share of the total thigh-to-thorax flexion taken
     # at the hip before the hip limit; the rest is lumbar flexion.
-    pelvis_share: float = 1.0
+    pelvis_share: float = 0.9
     head_follow: float = 0.5
     arms: ArmPosture = ARMS_CROSSED
     # Fraction of foot length from the heel that the centre of mass is

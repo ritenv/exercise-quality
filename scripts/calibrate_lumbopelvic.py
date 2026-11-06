@@ -3,14 +3,17 @@
     PYTHONPATH=src python scripts/calibrate_lumbopelvic.py [n_per_cohort]
 
 Parameters (population means):
+  share         lumbopelvic share before end range (hip share of the
+                thigh-to-thorax flexion; 1 keeps the lower back neutral)
   hip_limit     hip flexion, relative to standing, at which posterior
                 pelvic tilt begins (end range onset)
   gain          share of further hip flexion demand the hip still takes
                 past end range (0 = hard stop)
 
-The lumbopelvic share before end range is held at protocols.PELVIS_SHARE.
-An earlier grid over (share, hip_limit) with a hard stop put the share at
-the top of its range (1.0): cost 2.1, versus 4.7 at 0.8 and 18.7 at 0.6.
+The very first grid, over (share, hip_limit) with a hard stop, put the
+share at the top of its range (1.0): cost 2.1, versus 4.7 at 0.8 and 18.7
+at 0.6. The share is refitted here together with onset and gain because
+much of the model has changed since.
 
 Fitting targets, chosen because they measure the pelvis and hip directly:
   Zawadka 2020 pelvis tilt ROM (men, women)
@@ -60,8 +63,9 @@ from exercise_quality.exercises.squat import literature as lit
 from exercise_quality.exercises.squat import protocols as p
 from exercise_quality.exercises.squat.cohort import simulate_cohort
 
-GAINS = np.round(np.arange(0.0, 0.401, 0.1), 2)
-HIP_LIMITS = np.arange(77.5, 100.01, 2.5)
+SHARES = (0.8, 0.9, 1.0)
+GAINS = (0.0, 0.1, 0.2)
+HIP_LIMITS = np.arange(92.5, 105.01, 2.5)
 FPS = 30.0
 
 
@@ -79,8 +83,10 @@ def targets():
     ]
 
 
-def evaluate(population, gain, hip_limit, n):
+def evaluate(population, gain, hip_limit, n, share=None):
     kwargs = dict(hip_limit=(hip_limit, p.HIP_LIMIT[1]), hip_gain=gain, fps=FPS)
+    if share is not None:
+        kwargs["pelvis_share"] = (share, p.PELVIS_SHARE[1])
     cohorts = {
         "zawadka": simulate_cohort(population, p.ZAWADKA_MAX_DEPTH, n, seed=101,
                                    female_share=0.5, **kwargs),
@@ -96,17 +102,17 @@ def evaluate(population, gain, hip_limit, n):
 def main(n):
     population = BodyPopulation.load()
     names = [f"{s}:{x or 'all'}:{m}" for s, x, m, _ in targets()]
-    print("gain   hip    cost   " + "  ".join(f"{nm:>24}" for nm in names))
+    print("share gain   hip    cost   " + "  ".join(f"{nm:>24}" for nm in names))
     best = None
-    for gain, hip in itertools.product(GAINS, HIP_LIMITS):
-        zs = evaluate(population, gain, hip, n)
+    for share, gain, hip in itertools.product(SHARES, GAINS, HIP_LIMITS):
+        zs = evaluate(population, gain, hip, n, share)
         cost = float(np.sum(zs**2))
-        print(f"{gain:4.1f}  {hip:5.1f}  {cost:6.2f}  "
-              + "  ".join(f"{z:+24.2f}" for z in zs))
+        print(f"{share:4.1f}  {gain:4.1f}  {hip:5.1f}  {cost:6.2f}  "
+              + "  ".join(f"{z:+24.2f}" for z in zs), flush=True)
         if best is None or cost < best[0]:
-            best = (cost, gain, hip, zs)
-    cost, gain, hip, zs = best
-    print(f"\nBest: gain = {gain:.1f}, hip_limit = {hip:.1f} deg, cost = {cost:.2f}")
+            best = (cost, share, gain, hip, zs)
+    cost, share, gain, hip, zs = best
+    print(f"\nBest: share = {share:.1f}, gain = {gain:.1f}, hip_limit = {hip:.1f} deg, cost = {cost:.2f}")
     for nm, z in zip(names, zs):
         print(f"  {nm:<28} z = {z:+.2f}")
 
