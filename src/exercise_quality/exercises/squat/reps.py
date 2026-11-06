@@ -130,7 +130,8 @@ def rep_features(track, rep, angles=None, leg_length=None):
         return 1000.0 * (int(np.argmax(values)) - (rep.lowest - rep.start)) / fps
 
     trunk = angles["trunk_inclination"]
-    ascent = slice(rep.lowest, rep.end + 1)
+    # from the start of the rise, so a hold at the bottom does not count
+    ascent = slice(rep.ascent_start, rep.end + 1)
     return {
         "knee_peak": float(angles["knee_flexion"][b]),
         "thigh_at_bottom": float(angles["thigh_inclination"][b]),
@@ -146,7 +147,7 @@ def rep_features(track, rep, angles=None, leg_length=None):
         "ankle_at_knee60": _at_knee(knee_down, angles["ankle_dorsiflexion"][down], 60.0),
         "ankle_at_knee90": _at_knee(knee_down, angles["ankle_dorsiflexion"][down], 90.0),
         # trunk lean gained after the lowest point: hips rising before the chest
-        "trunk_rise_after_bottom": float(trunk[ascent].max() - trunk[rep.lowest]),
+        "trunk_rise_after_bottom": float(trunk[ascent].max() - trunk[rep.ascent_start]),
         "hip_back_at_bottom": float((hip_x[rep.start] - hip_x[b]) / leg_length),
         "knee_past_toe_at_bottom": float(knee_x[b] / foot_length),
         "heel_rise_max": float(heel_rise[whole].max() / foot_length),

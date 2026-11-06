@@ -54,6 +54,18 @@ def model_proportions(body):
     return {k: float(lengths[k][0] / leg) for k in RATIOS}
 
 
+_TABLES = {}
+
+
+def _proportion_table(population, sex):
+    key = (id(population), sex)
+    if key not in _TABLES:
+        bodies = population.bodies(sex)
+        table = np.array([[model_proportions(b)[r] for r in RATIOS] for b in bodies])
+        _TABLES[key] = (population, bodies, table)    # keep population alive so its id stays unique
+    return _TABLES[key][1], _TABLES[key][2]
+
+
 def matched_bodies(population, ratios, sex, k=40, weights=None):
     """The k ANSUR people of ``sex`` whose proportions are closest.
 
@@ -62,8 +74,7 @@ def matched_bodies(population, ratios, sex, k=40, weights=None):
     population ratio table, standardised distance of the best match).
     """
     weights = weights or {r: 1.0 for r in RATIOS}
-    bodies = population.bodies(sex)
-    table = np.array([[model_proportions(b)[r] for r in RATIOS] for b in bodies])
+    bodies, table = _proportion_table(population, sex)
     sd = table.std(axis=0)
     target = np.array([ratios[r] for r in RATIOS])
     w = np.array([weights[r] for r in RATIOS])
