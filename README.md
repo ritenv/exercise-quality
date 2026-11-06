@@ -38,6 +38,7 @@ PYTHONPATH=src python scripts/extract_video_landmarks.py VIDEO # track a video w
 PYTHONPATH=src python scripts/real_video_check.py              # real vs matched synthetic reps (docs/real_video_check.md)
 PYTHONPATH=src python scripts/rubric_report.py                 # rubric on real clips, cohorts and injected faults
 PYTHONPATH=src python scripts/camera_views.py 120               # how camera angle and distance change what is measured
+PYTHONPATH=src python scripts/front_view_check.py 16           # front-view videos vs matched 3D reps (docs/front_view_check.md)
 PYTHONPATH=src python scripts/validate_against_literature.py 200 --3d   # the same validation with the 3D model
 ```
 
@@ -103,6 +104,7 @@ docs/
   real_video_check.md  two tracked real videos vs matched synthetic reps
   rubric.md            the form rubric, its sources and how it behaves
   model3d.md           the 3D model, virtual camera and camera placement
+  front_view_check.md  real front-view videos against matched 3D synthetic reps
 ```
 
 ## Limits

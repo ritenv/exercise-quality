@@ -103,7 +103,7 @@ The tracker-noise model needed a fitted "knees out 24°" term to produce this ([
 
 - **Unchecked from the front.** The front-view predictions, knee FPPA and how the hips and knees look in the image, haven't been compared with any front-view data. That needs front-view videos.
 - **Landmark positions:**
-  - MediaPipe's hip and shoulder points are learned from human labels, not exact joint centres. Using joint centres matters more from the front.
+  - MediaPipe's hip and shoulder points are learned from human labels, not exact joint centres. The camera moves its hip points outward, calibrated on the front-view clips ([front_view_check.md](front_view_check.md)).
   - Face and finger points are approximated.
   - Crossed arms are drawn in the shoulders' planes, not across the chest.
 - **Tracker noise from the front is unmeasured.** Jitter and drift come from one side-on clip and are assumed the same from every angle.
@@ -111,4 +111,5 @@ The tracker-noise model needed a fitted "knees out 24°" term to produce this ([
 - **Sources:**
   - The stance comes from loaded male lifters.
   - The hip joint width comes from one CT study, with sexes pooled.
+- **Knees over the toes is too narrow a default.** Five real front-view clips put the knees 3-14° further out than the toes point ([front_view_check.md](front_view_check.md)). The default isn't refitted yet.
 - **Not yet ported.** The real-video check and the rubric's synthetic tests still use the side-view model with the knees-out noise term. Moving them onto the 3D model and camera is the next step, along with a front-view rubric (knees caving in, hip shift, stance) once there are front-view videos.

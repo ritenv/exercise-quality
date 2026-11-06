@@ -67,16 +67,23 @@ def extract(video_path):
         running_mode=vision.RunningMode.VIDEO,
         num_poses=1,
     )
-    image_rows, world_rows, presence_rows = [], [], []
+    image_rows, world_rows, presence_rows, times = [], [], [], []
     with vision.PoseLandmarker.create_from_options(options) as landmarker:
-        index = 0
+        index, last_ms = 0, -1
         while True:
             ok, frame = capture.read()
             if not ok:
                 break
+            # Screen recordings and some phone videos have irregular frame
+            # times; use the container's timestamp, kept strictly increasing.
+            ms = capture.get(cv2.CAP_PROP_POS_MSEC)
+            ms = int(round(ms)) if ms > 0 or index == 0 else int(round(index * 1000.0 / fps))
+            ms = max(ms, last_ms + 1)
+            last_ms = ms
+            times.append(ms / 1000.0)
             rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-            result = landmarker.detect_for_video(image, int(round(index * 1000.0 / fps)))
+            result = landmarker.detect_for_video(image, ms)
             if result.pose_landmarks:
                 points = result.pose_landmarks[0]
                 image_rows.append([[p.x * width, p.y * height, p.z * width, p.visibility] for p in points])
@@ -93,6 +100,7 @@ def extract(video_path):
         "world": np.asarray(world_rows, dtype=np.float32),
         "presence": np.asarray(presence_rows, dtype=np.float32),
         "fps": np.float64(fps),
+        "t": np.asarray(times, dtype=np.float64),
         "width": np.int32(width),
         "height": np.int32(height),
     }

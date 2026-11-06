@@ -59,9 +59,43 @@ def available():
     return sorted(p.stem for p in DATA_DIR.glob("*.npz"))
 
 
+UNIFORM_FPS = 30.0
+
+
 def load_raw(name):
     with np.load(DATA_DIR / f"{name}.npz") as data:
-        return {k: data[k] for k in data.files}
+        return resample_uniform({k: data[k] for k in data.files})
+
+
+def resample_uniform(raw, fps=UNIFORM_FPS, tolerance=0.1):
+    """Resample a track with irregular frame times (``raw["t"]``) to a constant rate.
+
+    Everything downstream assumes evenly spaced frames. Screen recordings
+    and some phone videos are not: frame gaps of 8-58 ms within one clip
+    were seen. If the gaps vary by more than ``tolerance`` of their median,
+    every landmark is linearly interpolated onto an even ``fps`` grid
+    (NaN frames stay NaN where both neighbours are missing).
+    """
+    t = raw.get("t")
+    if t is None or len(t) < 3:
+        return raw
+    gaps = np.diff(t)
+    if np.max(np.abs(gaps - np.median(gaps))) <= tolerance * np.median(gaps):
+        return raw
+    grid = np.arange(t[0], t[-1] + 1e-9, 1.0 / fps)
+    out = dict(raw)
+    for key in ("image", "world", "presence"):
+        values = raw[key].astype(float)
+        flat = values.reshape(len(t), -1)
+        res = np.empty((len(grid), flat.shape[1]))
+        for j in range(flat.shape[1]):
+            ok = np.isfinite(flat[:, j])
+            res[:, j] = np.interp(grid, t[ok], flat[ok, j]) if ok.sum() >= 2 else np.nan
+        out[key] = res.reshape((len(grid),) + values.shape[1:])
+    out["t"] = grid
+    out["fps"] = np.float64(fps)
+    out["resampled_from_irregular"] = True
+    return out
 
 
 def near_side(raw):

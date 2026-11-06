@@ -71,4 +71,6 @@ def test_mediapipe_points_land_where_the_model_puts_them(seq):
     # front view: the person's right hip (24) appears on the image left
     assert np.all(raw["image"][:, 24, 0] < raw["image"][:, 23, 0])
     width = np.linalg.norm(raw["world"][:, 24] - raw["world"][:, 23], axis=-1)
-    np.testing.assert_allclose(width, seq.body.hip_joint_width, rtol=1e-3)
+    b = seq.body
+    expected = b.hip_joint_width + cam.MEDIAPIPE_HIP_OUTWARD * (b.hip_breadth - b.hip_joint_width)
+    np.testing.assert_allclose(width, expected, rtol=1e-3)

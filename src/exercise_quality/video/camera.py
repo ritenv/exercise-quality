@@ -26,8 +26,13 @@ MediaPipe's 33 points are filled from the model's: ears, shoulders,
 elbows, wrists, hip joint centres, knees, ankles, heels and toe tips (for
 "foot index"). The face points (eyes, mouth) are put at the nose and the
 finger points at the hand (knuckle). MediaPipe's hip and shoulder points
-are learned from human labels and are not exactly joint centres; using
-joint centres is an ASSUMPTION that matters more in a front view.
+are learned from human labels, not joint centres. Shoulders are put at
+the acromions (ANSUR II biacromial breadth; ASSUMPTION). Hips are moved
+out from the hip joint centres by ``MEDIAPIPE_HIP_OUTWARD`` of the way to
+the skin at hip-breadth level: fitted on four real front-view clips
+(three people), whose MediaPipe shoulder-over-hip width was 1.66-1.75,
+against 2.3-2.6 for acromion width over hip-joint-centre width
+(docs/front_view_check.md). Women gave 0.30, the man 0.42.
 
 Visibility: 0.9 for points on the side facing the camera, 0.6 on the
 far side (ASSUMPTION; real MediaPipe visibilities on the side-on clip
@@ -67,6 +72,7 @@ _NOISE_POINT = {
     "hand": "wrist", "hip": "hip", "knee": "knee", "ankle": "ankle", "heel": "heel", "toe": "toe",
 }
 NEAR_VISIBILITY, FAR_VISIBILITY = 0.9, 0.6
+MEDIAPIPE_HIP_OUTWARD = 0.35
 
 
 @dataclass(frozen=True)
@@ -107,11 +113,17 @@ class Camera:
         return np.stack([u, v], axis=-1), c[..., 2]
 
 
-def _mediapipe_array(landmarks):
+def _mediapipe_array(landmarks, body=None):
     first = next(iter(landmarks.values()))
     out = np.zeros(first.shape[:-1] + (N_LANDMARKS, 3))
     for i, name in MEDIAPIPE_SOURCE.items():
         out[..., i, :] = landmarks[name]
+    if body is not None:
+        lateral = landmarks["right_hip"] - landmarks["left_hip"]
+        lateral = lateral / np.linalg.norm(lateral, axis=-1, keepdims=True)
+        shift = 0.5 * MEDIAPIPE_HIP_OUTWARD * (body.hip_breadth - body.hip_joint_width)
+        out[..., 24, :] += shift * lateral
+        out[..., 23, :] -= shift * lateral
     return out
 
 
@@ -145,7 +157,7 @@ def synthetic_raw(seq, camera=Camera(), noise=None, rng=None, name="synthetic"):
     """
     if not seq.is_3d:
         raise ValueError("needs a 3D rep (SquatStyle.stance and a Body3D)")
-    points = _mediapipe_array(seq.landmarks3d)
+    points = _mediapipe_array(seq.landmarks3d, seq.body)
     image, depth = camera.project(points)
     if np.any(depth <= 0.1):
         raise ValueError("part of the body is behind or at the camera")
