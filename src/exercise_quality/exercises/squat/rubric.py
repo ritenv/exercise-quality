@@ -49,6 +49,38 @@ Graded criteria (BSA number, wording quoted from Table 1)
   standing hip height. Myer's "constant speed" is not graded: a
   smooth human movement speeds up and slows down (minimum-jerk profile).
 
+Further side-view checks (not in the BSA)
+-----------------------------------------
+These are not BSA criteria and have no published pass mark, so each
+standard below says where it comes from. They count towards ``score`` and
+``deficits`` like the BSA criteria; ``bsa_score`` and
+``bsa_deficit_total`` keep the BSA alone.
+
+* balance: the centre of mass over the foot at the bottom, estimated
+  from the tracked pose with the matched body, its thigh and shank
+  shortened to their seen length so knees travelling out over the toes do
+  not push the estimate back (core/observed_balance.py).
+  Standard: within Ishida 2025's mean bottom centre of pressure +- 2
+  between-person SD (``BALANCE_RANGE``, 0.20-0.52 of foot length from the
+  heel). Below means the weight sits on the heels, above on the toes. The
+  estimate is quasi-static (where the mass is, not where the floor
+  pushes), which is close at the slow bottom of a rep.
+* lockout: the knee straightens at the top after each rep. Measured as
+  the most extended knee between the ascent and the next rep (or the
+  following second). Standard: ``KNEE_LOCKED`` = 5 deg of flexion, a
+  convention; standing knees in healthy young adults read about 1-2 deg
+  on radiographs. The hip at the top is reported, not graded: the
+  tracker's hip angle (hip-shoulder line vs thigh) in standing depends on
+  pelvic tilt and posture, and there is no norm for it.
+* consistency: each rep's depth (thigh angle) and trunk lean at the
+  bottom, against the median of the other reps. Standard:
+  ``CONSISTENCY_DEG`` = 10 deg, a convention: no study reports normal
+  within-person rep-to-rep spread for this. Needs at least
+  ``MIN_REPS_FOR_CONSISTENCY`` reps, otherwise it is not graded.
+
+Bottom control (bouncing out of the bottom) is reported, not graded:
+see ``NOT_GRADED``.
+
 Thresholds and measurement tolerance
 ------------------------------------
 Each criterion has a standard (parallel, no heel lift, trunk within its
@@ -69,10 +101,11 @@ coaching judgement of what is "close enough".
 
 Score
 -----
-``deficits``: BSA total over the graded criteria (each criterion counts
-once if it fails in at least 2 reps, or in the only rep). ``score``:
-100 x the mean share of reps passing each graded criterion, equal
-weights. Equal weights are a choice, not evidence: the BSA itself counts
+``deficits``: the BSA rule applied to every graded criterion (each
+counts once if it fails in at least 2 reps, or in the only rep);
+``bsa_deficit_total`` counts the BSA criteria only. ``score``: 100 x the
+mean share of reps passing each graded criterion, equal weights;
+``bsa_score`` over the BSA criteria only. Equal weights are a choice, not evidence: the BSA itself counts
 criteria equally.
 
 Data checks
@@ -90,7 +123,7 @@ from functools import lru_cache
 import numpy as np
 
 from exercise_quality.core.observed import observed_angles, segment_lengths
-from exercise_quality.core.observed_balance import com_fraction
+from exercise_quality.core.observed_balance import com_fraction, projected_body
 from exercise_quality.core.sagittal_body import BodyPopulation
 from exercise_quality.exercises.squat import literature as lit
 from exercise_quality.exercises.squat import reps as R
@@ -107,7 +140,20 @@ TOLERANCE = {
     "trunk": 3.8,          # deg of trunk minus shin
     "ascent": 4.8,         # deg of trunk lean, up minus down
     "descent": 0.039,      # fraction of standing hip height
+    "balance": 0.080,      # fraction of foot length (full noise model, see measurement_tolerances)
+    "lockout": 0.27,       # deg of knee flexion at the top (signed: only "looks bent" errors)
+    "consistency": 4.5,    # deg, one rep vs another of the same video
 }
+
+BSA_CRITERIA = ("depth", "heels", "trunk", "ascent", "descent")
+EXTRA_CRITERIA = ("balance", "lockout", "consistency")
+
+_cop = lit.ISHIDA_2025["cop_fraction"]
+BALANCE_RANGE = (_cop.mean - 2 * _cop.sd, _cop.mean + 2 * _cop.sd)
+KNEE_LOCKED = 5.0
+CONSISTENCY_DEG = 10.0
+MIN_REPS_FOR_CONSISTENCY = 3
+TOP_WINDOW_S = 1.0
 
 # Data checks
 MIN_YAW_SCALE = 0.9                              # cos(26 deg)
@@ -125,6 +171,11 @@ NOT_GRADED = {
     "tibial progression (6)": "knees passing the toes is reported, not graded: restricting it moves load to "
                               "the hips and lower back (Fry et al. 2003), and the tracker toe point is not "
                               "the toe tip",
+    "bottom control": "bouncing out of the bottom is reported, not graded: there is no published pass "
+                      "mark, and at 30 fps tracker noise roughly doubles the measured turnaround acceleration "
+                      "(synthetic reps: median 0.23 g exact vs 0.42 g tracked, correlation 0.7-0.8); the peak "
+                      "upward hip acceleration at the turnaround is reported in g",
+    "hip lockout": "the tracker hip angle in standing depends on posture and has no norm; reported, not graded",
     "tempo (part of 10)": "Table 1's 'Ascent: Descent timing ratio is at least 2:1' is reported, not graded: "
                           "the direction is ambiguous as quoted",
 }
@@ -162,10 +213,15 @@ class RubricResult:
     warnings: list = field(default_factory=list)
     body_id: str = ""
     reported: dict = field(default_factory=dict)
+    bsa_score: float = float("nan")
 
     @property
     def deficit_total(self):
         return int(sum(self.deficits.values()))
+
+    @property
+    def bsa_deficit_total(self):
+        return int(sum(v for k, v in self.deficits.items() if k in BSA_CRITERIA))
 
 
 @lru_cache(maxsize=1)
@@ -182,6 +238,42 @@ def descent_interruption(track, rep):
     h = R.hip_height(track)[rep.start:rep.lowest + 1]
     running_min = np.minimum.accumulate(h)
     return float(np.max(h - running_min))
+
+
+def top_after(track, angles, reps, i):
+    """Frames from the start of rep ``i``'s ascent to the next rep's descent (or ``TOP_WINDOW_S`` on)."""
+    rep = reps[i]
+    end = reps[i + 1].start if i + 1 < len(reps) else rep.end + int(TOP_WINDOW_S * track.fps)
+    return slice(rep.ascent_start, min(end, len(track) - 1) + 1)
+
+
+def lockout(angles, window):
+    """Knee and hip flexion when the knee is most extended in ``window``.
+
+    Tracker noise biases the smallest angle towards straighter (about 2
+    deg on synthetic reps), so the check errs lenient. The highest hip
+    would be no better: near a straight leg the hip height hardly changes
+    with knee bend (1% of hip height is 10-15 deg of knee).
+    """
+    knee = angles["knee_flexion"][window]
+    j = int(np.nanargmin(knee))
+    return float(knee[j]), float(angles["hip_flexion"][window][j])
+
+
+def turnaround_acceleration(track, rep, body, window_s=0.25):
+    """Peak upward hip acceleration around the bottom, in g (image scale from the matched leg length)."""
+    lengths = segment_lengths(track)
+    metres_per_unit = (body.thigh + body.shank) / float(np.median(lengths["thigh"] + lengths["shank"]))
+    y = (track["hip"][:, 1] - track["ankle"][:, 1]) * metres_per_unit
+    acc = np.gradient(np.gradient(y, 1 / track.fps), 1 / track.fps)
+    w = int(window_s * track.fps)
+    return float(np.max(acc[max(0, rep.lowest - w):rep.lowest + w + 1]) / 9.81)
+
+
+def balance_offset(com):
+    """How far the COM is outside ``BALANCE_RANGE`` (0 inside), fraction of foot length."""
+    lo, hi = BALANCE_RANGE
+    return float(max(lo - com, com - hi, 0.0))
 
 
 def balanced_trunk_minus_shin(body, thigh, shin, shoulder, elbow, neck_relative, target=COM_TARGET):
@@ -232,10 +324,29 @@ def match_body(track, angles, sex=None, population=None):
 
 
 def trunk_needed_at_own_shin(body, features):
+    """Balance angle at the rep's own shin lean, with the segments as long as they looked."""
+    from dataclasses import replace
+
+    if "thigh_seen_scale" in features:
+        body = replace(body, thigh=body.thigh * features["thigh_seen_scale"],
+                       shank=body.shank * features["shank_seen_scale"])
     return balanced_trunk_minus_shin(
         body, features["thigh_at_bottom"], features["shank_at_bottom"],
         features["shoulder_flexion_at_bottom"], features["elbow_flexion_at_bottom"],
         features["neck_at_bottom"] - features["trunk_at_bottom"])
+
+
+def rep_measures(track, angles, reps, i, body):
+    """``reps.rep_features`` plus what the rubric needs beyond it."""
+    rep = reps[i]
+    f = R.rep_features(track, rep, angles)
+    b = _bottom(angles, rep)
+    seen = projected_body(body, track, b, angles)
+    f["thigh_seen_scale"], f["shank_seen_scale"] = seen.thigh / body.thigh, seen.shank / body.shank
+    f["com_at_bottom"] = float(com_fraction(seen, {k: np.asarray(v)[b] for k, v in angles.items()}))
+    f["knee_at_top"], f["hip_at_top"] = lockout(angles, top_after(track, angles, reps, i))
+    f["turnaround_acceleration_g"] = turnaround_acceleration(track, rep, body)
+    return f
 
 
 def grade_rep(features, track, rep, body):
@@ -255,7 +366,29 @@ def grade_rep(features, track, rep, body):
         "trunk lean on the way up minus on the way down at the same hip height (hips rising first)")
     add("descent", descent_interruption(track, rep), t["descent"],
         "largest upward hip movement during the descent")
+    com = features["com_at_bottom"]
+    side = "on the heels" if com < BALANCE_RANGE[0] else "on the toes" if com > BALANCE_RANGE[1] else "mid-foot"
+    add("balance", balance_offset(com), t["balance"],
+        f"centre of mass at {com:.2f} of the foot at the bottom ({side}); distance outside "
+        f"{BALANCE_RANGE[0]:.2f}-{BALANCE_RANGE[1]:.2f}")
+    add("lockout", features["knee_at_top"], KNEE_LOCKED + t["lockout"],
+        f"knee flexion at the top after the rep (hip {features['hip_at_top']:.1f} deg, not graded)")
     return criteria, allowance
+
+
+def grade_consistency(reps):
+    """Add the consistency criterion: each rep's depth and trunk lean against the other reps' median."""
+    if len(reps) < MIN_REPS_FOR_CONSISTENCY:
+        return
+    for r in reps:
+        others = [o for o in reps if o is not r]
+        d_thigh = r.features["thigh_at_bottom"] - np.median([o.features["thigh_at_bottom"] for o in others])
+        d_trunk = r.features["trunk_at_bottom"] - np.median([o.features["trunk_at_bottom"] for o in others])
+        value = max(abs(d_thigh), abs(d_trunk))
+        threshold = CONSISTENCY_DEG + TOLERANCE["consistency"]
+        r.criteria["consistency"] = CriterionResult(
+            "consistency", float(value), float(threshold), bool(value <= threshold),
+            f"vs the other reps: depth {d_thigh:+.1f} deg, trunk lean {d_trunk:+.1f} deg")
 
 
 def assess(track, body=None, sex=None, population=None):
@@ -297,9 +430,10 @@ def assess(track, body=None, sex=None, population=None):
 
     reps = []
     for i, rep in enumerate(found):
-        f = R.rep_features(smooth, rep, angles)
+        f = rep_measures(smooth, angles, found, i, body)
         criteria, allowance = grade_rep(f, smooth, rep, body)
         reps.append(RepResult(i, f, criteria, allowance, trunk_needed_at_own_shin(body, f)))
+    grade_consistency(reps)
 
     names = list(reps[0].criteria)
     fails = {n: sum(not r.criteria[n].passed for r in reps) for n in names}
@@ -307,6 +441,7 @@ def assess(track, body=None, sex=None, population=None):
     deficits = {n: fails[n] >= need for n in names}
     pass_share = {n: 1.0 - fails[n] / len(reps) for n in names}
     score = 100.0 * float(np.mean(list(pass_share.values())))
+    bsa_score = 100.0 * float(np.mean([pass_share[n] for n in names if n in BSA_CRITERIA]))
 
     lengths = segment_lengths(smooth)
     reported = {
@@ -318,13 +453,23 @@ def assess(track, body=None, sex=None, population=None):
         "ascent_s": float(np.median([r.features["ascent_s"] for r in reps])),
         "trunk_allowance": float(np.median([r.trunk_allowance for r in reps])),
         "leg_length_units": float(np.median(lengths["thigh"] + lengths["shank"])),
+        "hip_at_top": float(np.median([r.features["hip_at_top"] for r in reps])),
+        "turnaround_acceleration_g": float(np.median([r.features["turnaround_acceleration_g"] for r in reps])),
     }
     return RubricResult(reps, deficits, pass_share, score, reliable, warnings,
-                        getattr(body, "subject_id", ""), reported)
+                        getattr(body, "subject_id", ""), reported, bsa_score)
 
 
 def measurement_tolerances(n=300, seed=0, quantile=95.0):
-    """Recompute ``TOLERANCE`` from the tracker-noise model on synthetic reps."""
+    """Recompute ``TOLERANCE`` from the tracker-noise model on synthetic reps.
+
+    BSA criteria and lockout: jitter and drift only (see module docstring).
+    Balance: the full noise model including the knees-out projection,
+    because the centre of mass is a physical quantity and the projection
+    distorts its estimate. Consistency: two noise draws with the same
+    video-level settings stand in for two reps of one video; the error is
+    the difference between their errors.
+    """
     from dataclasses import replace
 
     from exercise_quality.core import tracker_noise as TN
@@ -335,7 +480,17 @@ def measurement_tolerances(n=300, seed=0, quantile=95.0):
 
     population = _population()
     rng = np.random.default_rng(seed)
+    extra = np.random.default_rng(seed + 10_000)   # separate stream: the BSA tolerances stay as they were
     errors = {k: [] for k in TOLERANCE}
+
+    def measured(track, body):
+        smooth = R.smoothed(track)
+        angles = observed_angles(smooth)
+        found = R.find_reps(smooth, angles)
+        if len(found) != 1:
+            return None
+        return smooth, found[0], rep_measures(smooth, angles, found, 0, body)
+
     while len(errors["depth"]) < n:
         body = population.sample(rng)
         protocol = ISHIDA_PARALLEL if rng.random() < 0.5 else ZAWADKA_MAX_DEPTH
@@ -361,4 +516,24 @@ def measurement_tolerances(n=300, seed=0, quantile=95.0):
         errors["trunk"].append(fn["trunk_minus_shank_at_bottom"] - fc["trunk_minus_shank_at_bottom"])
         errors["ascent"].append(fn["trunk_extra_on_ascent"] - fc["trunk_extra_on_ascent"])
         errors["descent"].append(descent_interruption(noisy, reps_n[0]) - descent_interruption(clean, reps_c[0]))
-    return {k: float(np.percentile(np.abs(v), quantile)) for k, v in errors.items()}
+
+        exact = measured(from_model_landmarks(seq.landmarks, 30.0), body)
+        if exact is None:
+            continue
+        mc = exact[2]
+        mn = measured(TN.apply(from_model_landmarks(seq.landmarks, 30.0), noise, extra), body)
+        full = TN.TrackerNoise.sample(extra)
+        m1 = measured(TN.apply(from_model_landmarks(seq.landmarks, 30.0), full, extra), body)
+        m2 = measured(TN.apply(from_model_landmarks(seq.landmarks, 30.0), full, extra), body)
+        if mn is not None:
+            errors["lockout"].append(mn[2]["knee_at_top"] - mc["knee_at_top"])
+        if m1 is not None:
+            errors["balance"].append(m1[2]["com_at_bottom"] - mc["com_at_bottom"])
+        if m1 is not None and m2 is not None:
+            errors["consistency"].append(max(
+                abs(m1[2]["thigh_at_bottom"] - m2[2]["thigh_at_bottom"]),
+                abs(m1[2]["trunk_at_bottom"] - m2[2]["trunk_at_bottom"])))
+    # Lockout takes the most extended frame, so noise mostly makes the knee
+    # look straighter; only errors towards "bent" can fail a locked knee.
+    return {k: float(np.percentile(v, quantile) if k == "lockout" else np.percentile(np.abs(v), quantile))
+            for k, v in errors.items()}

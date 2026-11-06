@@ -29,7 +29,7 @@ Both are third-party videos. Only the MediaPipe landmark tracks are in the repos
    - the same peak knee bend, tempo (calibrated on the measured phases) and arm angles;
    - everything else sampled from the validated population spreads;
    - the tracker-noise model applied (below).
-5. **Balance check.** The centre of mass over the foot is estimated from the tracked pose with the matched body (`core/observed_balance.py`). It assumes a flat foot and a straight trunk along the hip-shoulder line. On exact synthetic reps it's off by 0.006 ± 0.010 foot lengths; through the noise model, by -0.03 ± 0.06.
+5. **Balance check.** The centre of mass over the foot is estimated from the tracked pose with the matched body (`core/observed_balance.py`). It assumes a flat foot and a straight trunk along the hip-shoulder line. The thigh and shank take the length they appear to have in that frame. When the knees travel out over the toes, the thigh looks shorter from the side, and rebuilding the pose with its full length would put the hip, and the centre of mass, about 0.1 foot lengths too far back. On exact synthetic reps the estimate is off by 0.006 ± 0.010 foot lengths; through the full noise model, 95% of errors are within 0.08.
 
 ## Results
 
@@ -43,13 +43,13 @@ Both are third-party videos. Only the MediaPipe landmark tracks are in the repos
 | **Trunk lean at the bottom** | **43.6** | **32.3** | **99 (6 of 6 reps above 95)** |
 | Trunk lean at 60 / 90 deg knee | 20.8 / 31.8 | 25.1 / 31.0 | 18 / 60 |
 | Hip travel back (fraction of leg) | 0.16 | 0.21 | 14 |
-| Centre of mass over the foot at the bottom | 0.32 | 0.26 | 65 |
+| Centre of mass over the foot at the bottom | 0.40 | 0.35 | 67 |
 | Trunk lean up minus down at the same hip height | 4.1 | 1.3 | 96 (3 of 6 above 95) |
 | Descent / ascent (s) | 0.80 / 0.70 | 0.91 / 0.68 | 27 / 56 |
 
 ![squat_1](figures/real_check_squat_1.png)
 
-- Depth, shin lean, tempo and the balance check all sit inside the synthetic spread. Her bottom position is balanced over mid-foot: 0.32-0.38 of foot length, against 0.363 in Ishida's force-plate data. So the tracked angles are physically consistent rather than tracker artefacts.
+- Depth, shin lean, tempo and the balance check all sit inside the synthetic spread. Her bottom position is balanced over mid-foot: 0.40-0.46 of foot length in reps 1-4, against 0.363 ± 0.08 in Ishida's force-plate data. So the tracked angles are physically consistent rather than tracker artefacts.
 - **The trunk curve has a different shape.** The real lean rises roughly linearly with knee bend and keeps rising to the bottom. The model's rises earlier (higher at 60 deg) and flattens past 90 deg, so it ends 11 deg lower. The real person balances the extra lean by keeping her hips further forward (hip travel back 0.16 vs 0.21).
 - The sixth rep (vertical shins, centre of mass near the heel) is far outside the synthetic spread on shin lean (percentile 0), as a deliberate "sit back" demonstration should be.
 

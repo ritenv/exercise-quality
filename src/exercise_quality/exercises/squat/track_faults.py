@@ -75,3 +75,52 @@ def hitch(track, back_up=0.08):
     back = np.arange(mid, j - 1, -1)        # replay frames mid -> j backwards (rising)
     order = np.concatenate([np.arange(0, mid + 1), back, np.arange(j, len(track))])
     return _replace(track, {k: v[order] for k, v in track.points.items()})
+
+
+def _rotate(vectors, angle):
+    c, s = np.cos(angle), np.sin(angle)
+    return np.stack([c * vectors[:, 0] - s * vectors[:, 1], s * vectors[:, 0] + c * vectors[:, 1]], axis=-1)
+
+
+def soft_lockout(track, knee=15.0):
+    """The knees stop ``knee`` degrees short of straight at the top after the rep.
+
+    From the ascent on, any frame bent less than ``knee`` is bent to it:
+    the shank tips forward about the ankle and the thigh back about the
+    knee by half the shortfall each, and everything above the hip moves
+    with the hip.
+    """
+    from exercise_quality.core.observed import observed_angles
+
+    rep = _only_rep(track)
+    flexion = observed_angles(track)["knee_flexion"]
+    short = np.where(np.arange(len(track)) >= rep.ascent_start, np.maximum(knee - flexion, 0.0), 0.0)
+    half = np.radians(short) / 2
+    ankle, knee_pt, hip = track["ankle"], track["knee"], track["hip"]
+    new_knee = ankle + _rotate(knee_pt - ankle, -half)       # clockwise: shank leans forward
+    new_hip = new_knee + _rotate(hip - knee_pt, half)          # counter-clockwise: thigh back
+    points = dict(track.points)
+    points["knee"] = new_knee
+    for name in ("hip",) + UPPER:
+        points[name] = track[name] + (new_hip - hip)
+    return _replace(track, points)
+
+
+def sit_back(track, degrees=25.0):
+    """The trunk tips ``degrees`` further back at the bottom, putting the weight on the heels.
+
+    The extra backward rotation about the hip grows with depth (fraction of
+    the rep's hip drop), so it is the same on the way down and up at equal
+    height and does not look like hips rising first.
+    """
+    rep = _only_rep(track)
+    h = R.hip_height(R.smoothed(track))
+    depth = np.clip((h[rep.start] - h) / (h[rep.start] - h[rep.lowest]), 0.0, 1.0)
+    depth[: rep.start] = 0.0
+    depth[rep.end + 1:] = 0.0
+    angle = np.radians(degrees) * depth          # counter-clockwise = backward for a person facing +x
+    points = dict(track.points)
+    hip = track["hip"]
+    for name in UPPER:
+        points[name] = hip + _rotate(track[name] - hip, angle)
+    return _replace(track, points)

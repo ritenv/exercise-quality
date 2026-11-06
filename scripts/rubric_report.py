@@ -34,7 +34,7 @@ from exercise_quality.exercises.squat.protocols import ISHIDA_PARALLEL, ZAWADKA_
 from exercise_quality.video import compare as C
 from exercise_quality.video import mediapipe_pose as mpp
 
-CRITERIA = ("depth", "heels", "trunk", "ascent", "descent")
+CRITERIA = rubric.BSA_CRITERIA + ("balance", "lockout")      # consistency needs several reps
 FAULTS = {
     "shallow (knee 85 deg)": ("depth", None),
     "heels lift 25% of foot": ("heels", partial(F.heel_lift, rise=0.25)),
@@ -44,6 +44,10 @@ FAULTS = {
     "hitch on the way down (8%)": ("descent", partial(F.hitch, back_up=0.08)),
     "hitch on the way down (4%)": ("descent", partial(F.hitch, back_up=0.04)),
     "forward lean (trunk pref 65, low ankle)": ("trunk", None),
+    "knees 15 deg short of straight at the top": ("lockout", partial(F.soft_lockout, knee=15.0)),
+    "knees 8 deg short of straight at the top": ("lockout", partial(F.soft_lockout, knee=8.0)),
+    "sit back, trunk 35 deg further back": ("balance", partial(F.sit_back, degrees=35.0)),
+    "sit back, trunk 20 deg further back": ("balance", partial(F.sit_back, degrees=20.0)),
 }
 
 
@@ -68,7 +72,8 @@ def _grade(track, body):
     result = rubric.assess(track, body=body)
     if len(result.reps) != 1:
         return None
-    return {k: c.passed for k, c in result.reps[0].criteria.items()}, result.score
+    rep = result.reps[0]
+    return {k: c.passed for k, c in rep.criteria.items()}, result.score, rep.features["turnaround_acceleration_g"]
 
 
 def cohort_job(args):
@@ -109,16 +114,18 @@ def real_clips():
         info = manifest.get(name, {})
         result = rubric.assess(mpp.observed_track(name), sex=info.get("apparent_sex"))
         print(f"\n### {name} ({info.get('view', '')})")
-        print(f"reliable: {result.reliable}; score {result.score:.0f}; BSA deficits {result.deficit_total} "
-              f"of {len(result.deficits)}; matched ANSUR {result.body_id}")
+        print(f"reliable: {result.reliable}; score {result.score:.0f} (BSA only {result.bsa_score:.0f}); "
+              f"deficits {result.deficit_total} of {len(result.deficits)} (BSA {result.bsa_deficit_total} of 5); "
+              f"matched ANSUR {result.body_id}")
         for w in result.warnings:
             print(f"  warning: {w}")
         print("criterion  " + " ".join(f"rep{r.index + 1:<3d}" for r in result.reps) + "  pass share  deficit")
-        for c in CRITERIA:
+        for c in [c for c in rubric.BSA_CRITERIA + rubric.EXTRA_CRITERIA if c in result.deficits]:
             cells = " ".join(f"{r.criteria[c].value:6.2f}{'' if r.criteria[c].passed else '*'}".ljust(7)
                              for r in result.reps)
             print(f"{c:10s} {cells}  {result.pass_share[c]:9.2f}  {result.deficits[c]}")
-        print("thresholds: " + ", ".join(f"{c} {result.reps[0].criteria[c].threshold:.2f}" for c in CRITERIA))
+        print("thresholds: " + ", ".join(f"{c} {crit.threshold:.2f}" for c, crit in result.reps[0].criteria.items()))
+        print("centre of mass at the bottom: " + " ".join(f"{r.features['com_at_bottom']:5.2f}" for r in result.reps))
         print("trunk needed at own shin: " + " ".join(f"{r.trunk_needed_at_own_shin:5.1f}" for r in result.reps))
         print("reported: " + ", ".join(f"{k} {v:.2f}" for k, v in result.reported.items()))
 
@@ -137,6 +144,12 @@ def synthetic_cohorts(pool, n):
                   f"{np.mean(clean[:, i] == noisy[:, i]):10.2f}")
         print(f"tracked score: median {np.median(scores):.0f}, 10th-90th percentile "
               f"{np.percentile(scores, 10):.0f}-{np.percentile(scores, 90):.0f}")
+        exact_g = np.array([o[0][2] for o in out])
+        seen_g = np.array([o[1][2] for o in out])
+        print(f"turnaround acceleration (g), exact vs tracked: median {np.median(exact_g):.2f} vs "
+              f"{np.median(seen_g):.2f}; 5-95% {np.percentile(exact_g, 5):.2f}-{np.percentile(exact_g, 95):.2f} vs "
+              f"{np.percentile(seen_g, 5):.2f}-{np.percentile(seen_g, 95):.2f}; "
+              f"correlation {np.corrcoef(exact_g, seen_g)[0, 1]:.2f}")
 
 
 def fault_detection(pool, n):

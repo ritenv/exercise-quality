@@ -85,6 +85,8 @@ This describes the balance-constrained squat generator (`exercises/squat/balance
 | Tracker jitter, drift and knees-out size | see `core/tracker_noise.py` | Measured on one side-on clip. Spreads between videos are assumptions. |
 | Ear position for the tracker view | 55% of C7-to-vertex | Assumption (head position only) |
 | Rubric tolerances | 95th percentile of tracker error | Derived from the noise model (`rubric.measurement_tolerances`) |
+| Rubric lockout and consistency standards | knee within 5 deg of straight; a rep within 10 deg of the others | Conventions, no published pass mark (rubric.md) |
+| Centre of mass from a tracked pose | thigh and shank at their seen length | Sagittal projection of the 3D centre of mass (`observed_balance.projected_body`) |
 | Build allowance in the trunk criterion | balance at 36.8 deg shin, COM at 36.3% of foot | Model-derived from Ishida's cued shin lean and natural COP |
 
 ## Known limitations

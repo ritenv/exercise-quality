@@ -1,13 +1,13 @@
 # Squat form rubric (side view)
 
-`exercises/squat/rubric.py` grades bodyweight squats from a side-view pose track: real video through MediaPipe, or synthetic reps through the same tracker view. It takes the person's body proportions into account.
+`exercises/squat/rubric.py` grades bodyweight squats from a side-view pose track: real video through MediaPipe, or synthetic reps through the same tracker view. It takes the person's body proportions into account. It grades the five side-view criteria of a published screen plus three further checks: balance, lockout and consistency.
 
 ```python
 from exercise_quality.exercises.squat import rubric
 from exercise_quality.video import mediapipe_pose as mpp
 
 result = rubric.assess(mpp.observed_track("squat_1"), sex="female")
-result.score, result.deficits, result.reliable, result.warnings
+result.score, result.bsa_score, result.deficits, result.reliable, result.warnings
 result.reps[0].criteria["trunk"]       # value, threshold, passed, note
 ```
 
@@ -36,6 +36,20 @@ Notes on the measures:
 - **Ascent.** Hips leading tips the trunk further forward on the way up than it was at the same height on the way down. A symmetric rep scores 0, even when the trunk leans most a little above the bottom on both passes, which is common. An earlier version measured extra lean after the bottom, which flagged symmetric deep squats.
 - **Heels.** The straight baseline keeps slow heel-toe drift, such as the camera rolling as it pans, from counting as a lift.
 
+## Further side-view checks
+
+Three more checks are graded the same way, but they're not in the BSA and have no published pass mark. Each standard says where it comes from.
+
+| Criterion | Measured as | Standard | Where the standard comes from | Tolerance |
+|---|---|---|---|---|
+| balance | centre of mass over the foot at the bottom (0 heel, 1 toe), from the tracked pose and the matched body | 0.20-0.52 | Ishida 2025's bottom centre of pressure, 0.363 ± 2 between-person SD | 0.080 of foot length |
+| lockout | most extended knee at the top after the rep | 5 deg of flexion or less | Convention. Standing knees in healthy young adults read about 1-2 deg on radiographs. | 0.27 deg |
+| consistency | each rep's depth (thigh angle) and trunk lean at the bottom, against the median of the other reps; the larger difference | 10 deg | Convention: no study reports normal rep-to-rep spread within a person | 4.5 deg |
+
+- **Balance.** Below the range, the weight sits on the heels; above it, on the toes. The estimate is quasi-static, giving where the mass is rather than where the floor pushes. That's close at the slow bottom of a rep. When the knees travel out over the toes, the thigh looks shorter from the side. So the thigh and shank take their seen length in the estimate (`observed_balance.projected_body`). Rebuilding the pose with full-length segments would put the hip, and the centre of mass, about 0.1 foot lengths too far back.
+- **Lockout.** The tracker's hip angle at the top is reported, not graded. It depends on pelvic tilt and standing posture, and there's no norm for it. Tracker noise makes the most extended frame look slightly straighter (about 2 deg), so this check errs lenient.
+- **Consistency.** It needs at least three reps; with fewer, it isn't graded.
+
 Not graded, with reasons (`rubric.NOT_GRADED`):
 
 - **Head (1).** The ear landmark is rough, and coaching advice on the head conflicts. The change in neck angle is reported.
@@ -44,6 +58,7 @@ Not graded, with reasons (`rubric.NOT_GRADED`):
 - **Tibial progression (6).** Knees passing the toes is reported, not graded:
   - restricting it shifts load to the hips and lower back (Fry, Smith and Schilling 2003, *J Strength Cond Res* 17(4):629-633, [PubMed](https://pubmed.ncbi.nlm.nih.gov/14636100/): hip torque about 28 N·m unrestricted vs 303 N·m restricted);
   - the tracker's toe point isn't the toe tip.
+- **Bottom control (bouncing out of the bottom).** There's no published pass mark. At 30 fps, tracker noise also roughly doubles the measured turnaround acceleration: in synthetic reps the median is 0.23 g exact vs 0.42 g tracked, with a correlation of 0.7-0.8. The peak upward hip acceleration at the turnaround is reported in g. squat_1 reads 0.39 g, inside the tracked synthetic spread.
 - **Tempo ratio (part of 10).** Table 1's "Ascent: Descent timing ratio is at least 2:1" is ambiguous as quoted. Durations are reported.
 
 ## Body proportions: the trunk allowance
@@ -74,12 +89,18 @@ This separates two kinds of BSA deficit, mobility or strategy versus balance, fr
 
 A criterion fails only when the measurement is past its standard by more than the tracker could plausibly be wrong. Each tolerance is the 95th percentile of |error| when synthetic reps (both protocols, varied tempos) pass through the jitter and drift of the tracker-noise model, with its assumed spread between videos (`rubric.measurement_tolerances()`, mean of two seeds of 300 reps; a test recomputes them).
 
-The noise model's knees-out projection isn't counted as error. When the knees travel out over the toes, a side view genuinely shows the shin about 5 deg more upright and the thigh about 3 deg deeper than the same squat in a single plane. The BSA judges what the side view shows, so the rubric does too.
+Some criteria are handled differently:
+
+- **Balance:** the error includes the knees-out projection, because the centre of mass is a physical quantity.
+- **Lockout:** the tolerance is the 95th percentile of the signed error. Noise mostly makes the knee look straighter, and only errors towards "bent" can fail a locked knee.
+- **Consistency:** two noise draws with the same video-level settings stand in for two reps of one video.
+
+For the BSA criteria, the noise model's knees-out projection isn't counted as error. When the knees travel out over the toes, a side view genuinely shows the shin about 5 deg more upright and the thigh about 3 deg deeper than the same squat in a single plane. The BSA judges what the side view shows, so the rubric does too.
 
 ## Score and reliability
 
-- `deficits` follows the BSA rule: a criterion counts once if it fails in 2 or more reps (or in the only rep). `deficit_total` runs 0-5, and lower is better.
-- `score` is 100 x the mean share of reps passing each criterion, with equal weights. That's a choice, not evidence; the BSA also counts criteria equally.
+- `deficits` follows the BSA rule for every criterion: a criterion counts once if it fails in 2 or more reps (or in the only rep). `deficit_total` covers all of them and lower is better. `bsa_deficit_total` (0-5) counts only the BSA criteria.
+- `score` is 100 x the mean share of reps passing each criterion, with equal weights. That's a choice, not evidence; the BSA also counts criteria equally. `bsa_score` is the same over the BSA criteria only.
 - `reliable` is False and `warnings` explains why in two cases:
   - the camera is more than 26 deg from side-on (from MediaPipe's 3D hip axis);
   - the tracked standing pose puts the centre of mass outside 0.16-0.73 of foot length. That's Fujiwara 2010's 31-58% quiet-standing range, widened by the tracker COM error. Such a pose can't be stood in, so the angles are distorted.
@@ -95,6 +116,8 @@ The noise model's knees-out projection isn't counted as error. When the knees tr
 | Hips rise first, trunk +10 / +5 deg | 100% / 54% |
 | Hitch on the way down, 8% / 4% of hip height | 100% / 75% |
 | Forward lean (strong trunk preference, little ankle) | 100% |
+| Knees 15 / 8 deg short of straight at the top | 93% / 28% |
+| Sit back, trunk 35 / 20 deg further back at the bottom | 94% / 39% |
 
 The fault-specific tests (`tests/test_rubric.py`) also check that each fault fails only its own criterion.
 
@@ -107,20 +130,29 @@ The fault-specific tests (`tests/test_rubric.py`) also check that each fault fai
 | trunk | 0.93 / 0.72 / 0.79 | 0.90 / 0.72 / 0.81 |
 | ascent | 1.00 / 0.95 / 0.95 | 1.00 / 0.95 / 0.95 |
 | descent | 1.00 / 0.95 / 0.95 | 1.00 / 0.97 / 0.97 |
+| balance | 1.00 / 1.00 / 1.00 | 1.00 / 0.99 / 0.99 |
+| lockout | 1.00 / 1.00 / 1.00 | 1.00 / 1.00 / 1.00 |
 
 - **Depth.** About half of people asked for "thighs parallel" don't reach a strict parallel. That matches Ishida's knee spread around a mean that sits right at parallel.
 - **Trunk, tracked view.** The knees-out projection fails more people (72% pass vs 93% exact).
 - **Agreement of 0.8-0.97 is the label noise** a model trained on tracked-view grades would face. Labels for training should be computed on the same tracked view the model sees.
-- **False alarms run at about 5%** on heels, ascent and descent in the tracked view, as the 95th-percentile tolerances intend.
+- **False alarms run at about 5%** on heels, ascent and descent in the tracked view, as the 95th-percentile tolerances intend. Balance and lockout almost never false-alarm. The generator always balances and stands up straight, so these cohorts can't show how often real people fail them.
+- Consistency isn't in this table: each synthetic track has one rep.
 
 **Real clips:**
 
-| Clip | Reliable | Score | Deficits |
+| Clip | Reliable | Score (BSA only) | Deficits |
 |---|---|---|---|
-| squat_1 (side-on) | yes | 53 | depth (thigh line 0.3-10 deg short of parallel in all 6 reps); trunk (12-20 deg ahead of the shin, 36 in the "sit back" rep, allowance 0); ascent (2 of 6 reps, by 0.1 and 1.9 deg over the tolerance) |
-| squat_2 (48 deg oblique) | **no**: camera angle, and an impossible standing balance (0.77) | 55 | not to be trusted |
+| squat_1 (side-on) | yes | 71 (53) | depth (thigh line 0.3-10 deg short of parallel in all 6 reps); trunk (12-20 deg ahead of the shin, 36 in the "sit back" rep, allowance 0); ascent (2 of 6 reps, by 0.1 and 1.9 deg over the tolerance). Balance, lockout and consistency all pass. |
+| squat_2 (48 deg oblique) | **no**: camera angle, and an impossible standing balance (0.77) | 42 (48) | not to be trusted |
 
-squat_1's trunk lean in reps 1-4 is within 4 deg of what balance needs at her own shin lean (28 deg, below the 36.8 deg cued value). By this rubric's logic her extra lean comes from shins that stay back, not from her weight sitting forward. Her ascent deficit is marginal. If MediaPipe's temporal smoothing lags some landmarks more than others, it would produce the same up-down difference, and the noise model has no lag.
+On squat_1:
+
+- **Trunk.** In reps 1-4 her shin lean is 28 deg, below the 36.8 deg cued value. At that shin lean, balance alone needs her trunk 5-12 deg ahead of the shin. She leans 3-8 deg more than that, and her centre of mass sits at 0.40-0.46 of the foot. That's ahead of Ishida's 0.363 average but inside the normal range. So by this rubric's logic, most of her extra lean comes from shins that stay back, and the rest from weight a little forward of average.
+- **Sit-back rep.** The sixth rep (a deliberate "sit back" squat) puts her centre of mass at 0.17, towards the heels. That's just inside the tolerance, so it passes balance.
+- **Ascent.** Her ascent deficit is marginal. If MediaPipe's temporal smoothing lags some landmarks more than others, it would produce the same up-down difference, and the noise model has no lag.
+
+squat_2 fails lockout in every rep (knees 7-19 deg bent at the top, continuous fast reps) and balance (centre of mass 0.61-0.87). But the clip is unreliable, and its standing pose already reads off-balance.
 
 ## Limits
 
@@ -129,4 +161,5 @@ squat_1's trunk lean in reps 1-4 is within 4 deg of what balance needs at her ow
 - The build allowance rests on the balance model, de Leva mass fractions and Ishida's numbers from 16 young men. It's applied to everyone.
 - Tolerances come from a noise model calibrated on one side-on clip, without tracker lag.
 - Missing frames (MediaPipe dropouts) are interpolated; ten random dropouts per point plus a 0.5 s gap changed no grade on the side-on clip (`tests/test_rubric.py`). A person facing -x is mirrored with a warning, and poorly visible legs (MediaPipe visibility below 0.5) mark the result unreliable.
+- The balance range comes from 16 young men in one study. The lockout and consistency standards are conventions.
 - Not validated against expert raters. Comparing these grades with coaches scoring the same videos is the next real test.

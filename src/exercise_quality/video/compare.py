@@ -24,7 +24,7 @@ from dataclasses import replace
 import numpy as np
 
 from exercise_quality.core import tracker_noise as TN
-from exercise_quality.core.observed_balance import com_fraction
+from exercise_quality.core.observed_balance import com_fraction, projected_body
 from exercise_quality.core.observed import from_model_landmarks, observed_angles, segment_lengths
 from exercise_quality.core.sagittal_model import JointAngles, forward_kinematics
 from exercise_quality.core.timing import RepTiming
@@ -149,10 +149,14 @@ def synthetic_rep(body, knee_peak, timing, arms, seed, fps=30.0, tracker_noise=T
 
 
 def com_at_bottom(body, track, rep, angles):
-    """Estimated COM position on the foot (0 heel, 1 toe) at the deepest knee bend."""
+    """Estimated COM position on the foot (0 heel, 1 toe) at the deepest knee bend.
+
+    Thigh and shank take their seen length (``projected_body``), so knees
+    travelling out over the toes do not push the estimate back.
+    """
     bottom = rep.start + int(np.argmax(angles["knee_flexion"][rep.start:rep.lowest + 1]))
     frame = {k: np.asarray(v)[bottom] for k, v in angles.items()}
-    return float(com_fraction(body, frame))
+    return float(com_fraction(projected_body(body, track, bottom, angles), frame))
 
 
 def percentile(value, sample):

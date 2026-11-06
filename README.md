@@ -15,7 +15,7 @@ The current focus is making the generated movement true to life before any machi
 - Checks the **dynamic centre of pressure** to confirm each rep would stay on its feet.
 - Compares simulated cohorts with **published squat and standing studies**. See [docs/validation.md](docs/validation.md), including where it falls short.
 - Tracks **real videos** with MediaPipe Pose and compares them with synthetic reps of matched people, seen through a **tracker-noise model** measured on real video. See [docs/real_video_check.md](docs/real_video_check.md).
-- Grades squats with a **side-view form rubric** (five criteria from the Back Squat Assessment). The trunk criterion allows for build: someone whose proportions need more forward lean to balance isn't marked down for it. See [docs/rubric.md](docs/rubric.md).
+- Grades squats with a **side-view form rubric**: five criteria from the Back Squat Assessment, plus balance over the foot, lockout at the top and rep-to-rep consistency. The trunk criterion allows for build: someone whose proportions need more forward lean to balance isn't marked down for it. See [docs/rubric.md](docs/rubric.md).
 
 ## Quick start
 
@@ -54,7 +54,7 @@ analyse_dynamics(rep).cop_fraction
 from exercise_quality.core.observed import from_model_landmarks
 from exercise_quality.exercises.squat import rubric
 result = rubric.assess(from_model_landmarks(rep.landmarks, rep.fps), body=body)
-result.score, result.deficits
+result.score, result.bsa_score, result.deficits
 ```
 
 ## Layout

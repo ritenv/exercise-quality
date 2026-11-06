@@ -50,12 +50,15 @@ def test_each_fault_fails_only_its_own_criterion(body):
         "ascent": F.hips_rise_first(good, extra_lean=10.0),
         "descent": F.hitch(good, back_up=0.08),
         "trunk": make_track(body, trunk_peak_preference=65.0, ankle_knee_ratio=0.18),
+        "lockout": F.soft_lockout(good, knee=15.0),
+        "balance": F.sit_back(good, degrees=35.0),
     }
     for name, track in cases.items():
         passed = criteria(track, body)
         assert not passed[name], name
         others = {k: v for k, v in passed.items() if k != name and not (name == "depth" and k == "trunk")}
         assert all(others.values()), (name, passed)
+    assert "consistency" not in passed     # needs three reps
 
 
 def test_one_bad_rep_in_three_is_not_a_deficit(body):
@@ -98,7 +101,8 @@ def test_long_thighs_get_a_larger_trunk_allowance(population):
 def test_stored_tolerances_match_the_noise_model():
     fresh = rubric.measurement_tolerances(n=150, seed=7)
     for key, stored in rubric.TOLERANCE.items():
-        assert 0.6 * stored < fresh[key] < 1.6 * stored, (key, stored, fresh[key])
+        slack = 0.5 if key == "lockout" else 0.0      # a fraction of a degree, noisy in relative terms
+        assert 0.6 * stored - slack < fresh[key] < 1.6 * stored + slack, (key, stored, fresh[key])
 
 
 def test_real_clips():
@@ -106,11 +110,17 @@ def test_real_clips():
     assert side_on.reliable and len(side_on.reps) == 6
     assert side_on.deficits["depth"] and side_on.deficits["trunk"]
     assert not side_on.deficits["heels"] and not side_on.deficits["descent"]
-    # her lean is about what balance needs at her own shin angle (reps 1-4)
+    assert not any(side_on.deficits[k] for k in rubric.EXTRA_CRITERIA)
     for rep in side_on.reps[:4]:
-        assert abs(rep.criteria["trunk"].value - rep.trunk_needed_at_own_shin) < 5.0
+        # her shins account for most of the lean; the rest is weight a little forward of average
+        extra = rep.criteria["trunk"].value - rep.trunk_needed_at_own_shin
+        assert 0.0 < extra < 10.0
+        assert rubric.COM_TARGET < rep.features["com_at_bottom"] < rubric.BALANCE_RANGE[1]
+    # the "sit back" demonstration rep puts the weight towards the heels
+    assert side_on.reps[5].features["com_at_bottom"] < rubric.BALANCE_RANGE[0]
     oblique = rubric.assess(mpp.observed_track("squat_2"), sex="male")
     assert not oblique.reliable and len(oblique.warnings) == 2
+    assert oblique.bsa_score != oblique.score
 
 
 def test_symmetric_reps_do_not_count_as_hips_first(body):
@@ -150,3 +160,43 @@ def test_missing_frames_do_not_change_the_grades():
     for ra, rb in zip(a.reps, b.reps):
         for name in ra.criteria:
             assert rb.criteria[name].value == pytest.approx(ra.criteria[name].value, abs=0.5)
+
+
+def test_an_odd_rep_out_fails_consistency(body):
+    deep, shallow = make_track(body), make_track(body, peak_knee_flexion=90.0)
+    reps = [deep, deep, shallow, deep]
+    track = replace(deep, points={k: np.concatenate([t[k] for t in reps]) for k in deep.points})
+    result = rubric.assess(track, body=body)
+    assert len(result.reps) == 4
+    passed = [r.criteria["consistency"].passed for r in result.reps]
+    assert passed == [True, True, False, True]
+    assert not result.deficits["consistency"]       # one odd rep is not a BSA-style deficit
+
+
+def test_bsa_totals_leave_out_the_extra_checks(body):
+    result = rubric.assess(F.soft_lockout(make_track(body), knee=15.0), body=body)
+    assert result.deficits["lockout"]
+    assert result.deficit_total == result.bsa_deficit_total + 1
+    assert result.bsa_score == pytest.approx(100.0)
+    assert result.score < result.bsa_score
+
+
+def test_knees_out_does_not_push_the_balance_estimate_back(body, population):
+    from exercise_quality.core import tracker_noise as TN
+
+    track = make_track(body)
+    exact = rubric.assess(track, body=body).reps[0].features["com_at_bottom"]
+    rng = np.random.default_rng(0)
+    knees_out = TN.TrackerNoise(jitter_scale=0.0, drift_scale=0.0, knee_out_deg=30.0)
+    noisy = TN.apply(track, knees_out, rng)
+    seen = rubric.assess(noisy, body=body).reps[0].features["com_at_bottom"]
+    # the same pose rebuilt with full-length segments, as before the correction
+    from exercise_quality.core.observed import observed_angles
+    from exercise_quality.core.observed_balance import com_fraction
+    from exercise_quality.exercises.squat import reps as R
+    smooth = R.smoothed(noisy)
+    angles = observed_angles(smooth)
+    b = rubric._bottom(angles, R.find_reps(smooth, angles)[0])
+    naive = float(com_fraction(body, {k: v[b] for k, v in angles.items()}))
+    assert abs(seen - exact) < 0.05
+    assert abs(seen - exact) < 0.3 * abs(naive - exact)

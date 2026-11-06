@@ -20,10 +20,12 @@ term, so this is where the mass is, not where the floor pushes.
 exact COM on synthetic reps.
 """
 
+from dataclasses import replace
+
 import numpy as np
 
 from exercise_quality.core.balance import centre_of_mass, support_region
-from exercise_quality.core.observed import observed_angles
+from exercise_quality.core.observed import observed_angles, segment_lengths
 from exercise_quality.core.sagittal_model import JointAngles, forward_kinematics
 
 
@@ -51,3 +53,29 @@ def com_fraction(body, angles):
 
 def track_com_fraction(body, track, angles=None):
     return com_fraction(body, angles or observed_angles(track))
+
+
+def projected_body(body, track, frame, angles=None):
+    """``body`` with thigh and shank shortened to how long they look at ``frame``.
+
+    When the knees travel out over the toes, a side view sees the thigh
+    (and a little of the shank) foreshortened. Rebuilding that pose with
+    full segment lengths at the seen angles puts the hip too far back, and
+    the centre of mass with it (by about 0.1 of foot length at the bottom
+    of a squat, through the tracker-noise model). The sagittal position of
+    the centre of mass only depends on where the segments project, and a
+    segment's mass centre projects to the same fraction along the
+    projected segment, so shortening the segments to their seen length
+    gives the right answer. Standing lengths are the medians over frames
+    with the knee bent less than 10 deg (95th percentile if there are
+    none). Never lengthens a segment.
+    """
+    angles = angles or observed_angles(track)
+    lengths = segment_lengths(track)
+    upright = np.asarray(angles["knee_flexion"]) < 10.0
+    scales = {}
+    for name in ("thigh", "shank"):
+        values = np.asarray(lengths[name], float)
+        standing = np.nanmedian(values[upright]) if upright.sum() >= 5 else np.nanpercentile(values, 95)
+        scales[name] = float(min(1.0, values[frame] / standing))
+    return replace(body, thigh=body.thigh * scales["thigh"], shank=body.shank * scales["shank"])
