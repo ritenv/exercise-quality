@@ -46,15 +46,19 @@ parallel one, so under the parallel depth their hip ROM would pull the
 fit towards the shallower squat. It is now a cross-check only.
 
 The objective is the sum of squared z scores against these. Everything
-else (lumbar flexion, trunk lean, COM descent, timing, Mata's knee angle
-at pelvic tilt) is left out of the fit so it stays an honest prediction.
+else (lumbar flexion, trunk lean, COM descent, joint timing, Mata's ankle
+angle at pelvic tilt) is left out of the fit so it stays an honest
+prediction.
 
 Every grid point reuses the same random seeds (common random numbers),
 so differences between grid points come from the parameters, not noise.
+Grid points are independent and run in parallel, one per CPU core.
 """
 
 import itertools
+import os
 import sys
+from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
 
@@ -65,7 +69,7 @@ from exercise_quality.exercises.squat.cohort import simulate_cohort
 
 SHARES = (0.8, 0.9, 1.0)
 GAINS = (0.0, 0.1, 0.2)
-HIP_LIMITS = np.arange(92.5, 105.01, 2.5)
+HIP_LIMITS = np.arange(92.5, 110.01, 2.5)
 FPS = 30.0
 
 
@@ -99,16 +103,22 @@ def evaluate(population, gain, hip_limit, n, share=None):
     return np.array(zs)
 
 
+def _evaluate_point(args):
+    share, gain, hip, n = args
+    return evaluate(BodyPopulation.load(), gain, hip, n, share)
+
+
 def main(n):
-    population = BodyPopulation.load()
     names = [f"{s}:{x or 'all'}:{m}" for s, x, m, _ in targets()]
+    grid = list(itertools.product(SHARES, GAINS, HIP_LIMITS))
+    with ProcessPoolExecutor(max_workers=os.cpu_count()) as pool:
+        results = list(pool.map(_evaluate_point, [(*point, n) for point in grid]))
     print("share gain   hip    cost   " + "  ".join(f"{nm:>24}" for nm in names))
     best = None
-    for share, gain, hip in itertools.product(SHARES, GAINS, HIP_LIMITS):
-        zs = evaluate(population, gain, hip, n, share)
+    for (share, gain, hip), zs in zip(grid, results):
         cost = float(np.sum(zs**2))
         print(f"{share:4.1f}  {gain:4.1f}  {hip:5.1f}  {cost:6.2f}  "
-              + "  ".join(f"{z:+24.2f}" for z in zs), flush=True)
+              + "  ".join(f"{z:+24.2f}" for z in zs))
         if best is None or cost < best[0]:
             best = (cost, share, gain, hip, zs)
     cost, share, gain, hip, zs = best
