@@ -87,6 +87,10 @@ class Body3D:
     hip_breadth: ANSUR II standing hip breadth, the skin width at the
         hips; stance widths are expressed relative to it.
     foot_breadth, head_breadth: ANSUR II.
+    ankle_breadth: ANSUR II bimalleolar breadth (skin, malleolus to
+        malleolus).
+    knee_breadth: skin width across the knee, estimated (``knee_breadth``):
+        ANSUR II has no knee breadth.
     Every side-view attribute (``thigh``, ``mass``...) reads through to
     ``sagittal``.
     """
@@ -97,11 +101,27 @@ class Body3D:
     hip_breadth: float
     foot_breadth: float
     head_breadth: float
+    ankle_breadth: float = 0.071
+    knee_breadth: float = 0.099
 
     def __getattr__(self, name):
         if name == "sagittal":           # during unpickling, before fields exist
             raise AttributeError(name)
         return getattr(self.sagittal, name)
+
+
+# Femoral bicondylar breadth (bone), dried femora of 360 Greek adults
+# (med.auth.gr anatomy study, via search): men 8.86 cm, women 7.85 cm. The
+# skin width across the knee is taken as that, scaled by the person's
+# lower thigh circumference over their sex's median, plus 2 x 0.75 cm of
+# soft tissue (ASSUMPTION; no skin knee breadth norm was found).
+KNEE_BONE_BREADTH = {"male": 0.0886, "female": 0.0785}
+KNEE_SOFT_TISSUE = 0.015
+
+
+def knee_breadth(population, sex, lower_thigh_circumference):
+    median = population.median_measurements(sex)["lower_thigh_circumference_m"]
+    return KNEE_BONE_BREADTH[sex] * lower_thigh_circumference / median + KNEE_SOFT_TISSUE
 
 
 def make_body3d(population, sex, index):
@@ -121,7 +141,9 @@ def make_body3d(population, sex, index):
     width = HIP_JOINT_WIDTH[0] + HIP_JOINT_WIDTH[1] * (r * z + np.sqrt(1 - r * r) * rng.normal())
     return Body3D(sagittal=sagittal, hip_joint_width=float(width),
                   shoulder_width=row["biacromial_breadth_m"], hip_breadth=row["hip_breadth_m"],
-                  foot_breadth=row["foot_breadth_m"], head_breadth=row["head_breadth_m"])
+                  foot_breadth=row["foot_breadth_m"], head_breadth=row["head_breadth_m"],
+                  ankle_breadth=row["bimalleolar_breadth_m"],
+                  knee_breadth=knee_breadth(population, sex, row["lower_thigh_circumference_m"]))
 
 
 def body3d_of(population, body):
@@ -142,7 +164,9 @@ def median_body3d(population, sex):
     m = population.median_measurements(sex)
     return Body3D(sagittal=population.median_body(sex), hip_joint_width=HIP_JOINT_WIDTH[0],
                   shoulder_width=m["biacromial_breadth_m"], hip_breadth=m["hip_breadth_m"],
-                  foot_breadth=m["foot_breadth_m"], head_breadth=m["head_breadth_m"])
+                  foot_breadth=m["foot_breadth_m"], head_breadth=m["head_breadth_m"],
+                  ankle_breadth=m["bimalleolar_breadth_m"],
+                  knee_breadth=knee_breadth(population, sex, m["lower_thigh_circumference_m"]))
 
 
 @dataclass(frozen=True)

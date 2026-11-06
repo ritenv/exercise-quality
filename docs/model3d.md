@@ -106,7 +106,7 @@ The tracker-noise model used to need a fitted "knees out 24°" term to produce t
   - MediaPipe's hip and shoulder points are learned from human labels, not exact joint centres. The camera moves its hip points outward, calibrated on the front-view clips ([front_view_check.md](front_view_check.md)).
   - Face and finger points are approximated.
   - Crossed arms are drawn in the shoulders' planes, not across the chest.
-- **Tracker noise from the front is unmeasured.** Jitter and drift come from one side-on clip and are assumed the same from every angle.
+- **Tracker noise from the front is only partly measured.** Jitter and drift come from one side-on clip and are assumed the same from every angle. Left-right pairs (the two hips, the two knees) share 80% of it (`camera.PAIR_SHARE`), fitted to the hip line's wobble in the five front-view clips ([front_rubric.md](front_rubric.md)).
 - **Lateral balance isn't solved.** A sideways shift moves the centre of mass sideways but nothing checks it stays over the feet; small shifts (a few cm) stay well inside.
 - **Sources:**
   - The stance comes from loaded male lifters.

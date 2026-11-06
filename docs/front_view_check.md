@@ -50,11 +50,11 @@ Everything is measured in the image, as scale-free ratios:
 
 | Clip | Camera angle | Stance (× hip breadth) | Knee tracking that matches | KASR at the bottom, real / knees over toes / fitted | FPPA right, left (half way), real / fitted |
 |---|---|---|---|---|---|
-| 1 | +2° | 1.46 | **-13.4°** (-15.0 to -11.3) | 1.18 / 0.87 / 1.18 | -48, -53 / -46, -51 |
-| 2 | +2° | 1.53 | **-13.9°** (-15.9 to -11.9) | 1.15 / 0.82 / 1.15 | -49, -54 / -52, -58 |
-| 3 | -22° | 1.63 | **-3.1°** (-5.0 to -1.0) | 1.07 / 1.01 / 1.07 | -70, -13 / -67, -11 |
-| 4 | -13° | 1.36 | **-8.9°** (-11.8 to -6.6) | 1.66 / 1.37 / 1.66 | -76, -42 / -79, -48 |
-| 5 | +3° | 1.38 | **-5.6°** (-7.7 to -3.4) | 1.43 / 1.26 / 1.42 | -50, -58 / -48, -56 |
+| 1 | +2° | 1.46 | **-13.4°** (-15.0 to -11.3) | 1.18 / 0.86 / 1.18 | -48, -53 / -45, -51 |
+| 2 | +2° | 1.53 | **-13.9°** (-15.9 to -11.9) | 1.15 / 0.82 / 1.15 | -49, -54 / -52, -56 |
+| 3 | -22° | 1.63 | **-3.1°** (-5.0 to -1.0) | 1.07 / 1.01 / 1.07 | -70, -13 / -67, -8 |
+| 4 | -13° | 1.36 | **-8.9°** (-11.8 to -6.6) | 1.66 / 1.36 / 1.66 | -76, -42 / -75, -42 |
+| 5 | +3° | 1.38 | **-5.6°** (-7.7 to -3.4) | 1.43 / 1.25 / 1.42 | -50, -58 / -49, -56 |
 
 The camera angle is solved from image symmetry. Knee tracking is the median over 16 matched people, with 5-95% in brackets.
 
@@ -63,7 +63,7 @@ The camera angle is solved from image symmetry. Knee tracking is the median over
   - The three trainer clips (1, 2, 4) push out most. That fits the common coaching cue "knees out".
 - **One fitted number per clip reproduces the other measures.**
   - The knee angle on both sides half way down matches within 1-6° in every clip.
-  - Knee separation half way down matches within 0.05 (0.07 for clip 5).
+  - Knee separation half way down matches within 0.04 (0.07 for clip 5).
 - **Hip shift, pelvic tilt and depth difference are small in the square-on clips** (|shift| ≤ 0.04 of ankle width, tilt within ±1.5°) and inside the synthetic spread. In the angled clips (3, 4) the view makes them unreliable. Clip 3's 3.6° pelvic tilt and 0.13 depth difference lie outside the matched synthetic spread at the same angle. That could be real asymmetry, or the view being modelled imperfectly, and one clip can't tell which.
 - **These people squat wide:** 1.36-1.63 × hip breadth, against Sinclair's lifters at 1.23.
 
@@ -80,4 +80,4 @@ The camera angle is solved from image symmetry. Knee tracking is the median over
 - **People:** five, two of them probably the same person, four of them trainers demonstrating. Two clips are not square to the camera.
 - **No reference measurement.** MediaPipe's front-view errors are inferred from symmetry, not measured against motion capture.
 - **Camera placement is estimated:** distance and height in clip 5 are judged from the framing.
-- **Tracker noise** in the synthetic reps comes from the side-view clip.
+- **Tracker noise** in the synthetic reps comes from the side-view clip. Left-right landmark pairs share 80% of it, fitted to how little the real clips' hip line wobbles while standing ([front_rubric.md](front_rubric.md)).

@@ -2,7 +2,7 @@
 
 Synthetic, physically grounded exercise movement, generated in the open, as the basis for small models that describe exercise form. The first exercise is the bodyweight squat, seen from the side.
 
-The current focus is making the generated movement true to life before any machine learning. A first side-view form rubric now exists, built on a published screening standard and adjusted for body proportions.
+The current focus is making the generated movement true to life before any machine learning. Side-view and front-view form rubrics now exist, built on a published screening standard and adjusted for body proportions.
 
 ## What it does now
 
@@ -16,6 +16,7 @@ The current focus is making the generated movement true to life before any machi
 - Compares simulated cohorts with **published squat and standing studies**. See [docs/validation.md](docs/validation.md), including where it falls short.
 - Tracks **real videos** with MediaPipe Pose and compares them with 3D synthetic reps of matched people, filmed by a **virtual phone** and given tracker noise measured on real video. See [docs/real_video_check.md](docs/real_video_check.md).
 - Grades squats with a **side-view form rubric**: five criteria from the Back Squat Assessment, plus balance over the foot, lockout at the top and rep-to-rep consistency. The trunk criterion allows for build: someone whose proportions need more forward lean to balance isn't marked down for it. See [docs/rubric.md](docs/rubric.md).
+- Grades squats from the **front**: hips level and knees not crossing inside the ankles (Back Squat Assessment 4 and 5). See [docs/front_rubric.md](docs/front_rubric.md).
 
 - Has a **3D model** and a **virtual phone camera**: feet apart and turned out, each leg in its own plane, faults such as knees caving in, and MediaPipe-style landmarks from any camera angle, which go through the same code as real video. See [docs/model3d.md](docs/model3d.md).
 
@@ -39,6 +40,7 @@ PYTHONPATH=src python scripts/real_video_check.py              # real vs matched
 PYTHONPATH=src python scripts/rubric_report.py                 # rubric on real clips, cohorts and injected faults
 PYTHONPATH=src python scripts/camera_views.py 120               # how camera angle and distance change what is measured
 PYTHONPATH=src python scripts/front_view_check.py 16           # front-view videos vs matched 3D reps (docs/front_view_check.md)
+PYTHONPATH=src python scripts/front_rubric_report.py 200       # front-view rubric on real clips, cohorts and injected faults
 PYTHONPATH=src python scripts/validate_against_literature.py 200 --3d   # the same validation with the 3D model
 ```
 
@@ -89,6 +91,7 @@ src/exercise_quality/
     metrics.py         descriptors: depth category, trunk-tibia angle, pelvic tilt
     reps.py            find and measure reps in a tracked or synthetic track
     rubric.py          side-view form rubric (Back Squat Assessment, build-adjusted)
+    front_rubric.py    front-view form rubric (hips level, knees over feet)
     track_faults.py    inject known faults into a track, for testing the rubric
     drawing.py         plotting helpers
     (movement.py, movement_v2.py, validation.py, squat_animation.py: first prototype)
@@ -105,8 +108,9 @@ docs/
   rubric.md            the form rubric, its sources and how it behaves
   model3d.md           the 3D model, virtual camera and camera placement
   front_view_check.md  real front-view videos against matched 3D synthetic reps
+  front_rubric.md      the front-view rubric and how it behaves
 ```
 
 ## Limits
 
-Side view for grading (the 3D model is new and unchecked from the front), two spine joints, quasi-static planning, young and fit reference populations. Two real videos so far. The rubric is a technique standard, not validated against expert raters. No muscle forces, no medical or injury claims. See [docs/model.md](docs/model.md).
+Grading from a side or a front view, not both at once; two spine joints, quasi-static planning, young and fit reference populations. Two side-view and five front-view real videos so far. The rubric is a technique standard, not validated against expert raters. No muscle forces, no medical or injury claims. See [docs/model.md](docs/model.md).

@@ -167,18 +167,38 @@ def _side_of(name):
     return "left" if name.startswith("left_") else "right" if name.startswith("right_") else None
 
 
-def image_noise(image_xy, fps, leg_px, noise, rng):
+# Share of jitter and drift that a left-right landmark pair (the two hips,
+# the two knees...) have in common. MediaPipe moves such pairs together: on
+# the five front-view clips the hip line's tilt while standing still wobbles
+# by SD 0.5-1.2 deg (median 0.8); independent noise of the measured size
+# gives 1.3-3.6. Fitted to that median (docs/front_rubric.md).
+PAIR_SHARE = 0.8
+
+
+def image_noise(image_xy, fps, leg_px, noise, rng, pair_share=None):
     """Tracker jitter and drift added to MediaPipe image points (T, 33, 2), in pixels."""
+    pair_share = PAIR_SHARE if pair_share is None else pair_share
     n = image_xy.shape[0]
     out = image_xy.copy()
     shake = rng.normal(size=(n, 2))
     sigma = TN.DRIFT_KERNEL_S * fps
+
+    def smooth_noise():
+        d = gaussian_filter1d(rng.normal(size=(n, 2)), sigma, axis=0, mode="reflect")
+        return d / max(float(d.std()), 1e-12)
+
+    pairs = {}
     for i, name in MEDIAPIPE_SOURCE.items():
-        point = _NOISE_POINT[name.split("_", 1)[-1]]
+        part = name.split("_", 1)[-1]
+        point = _NOISE_POINT[part]
+        if part not in pairs:
+            pairs[part] = (rng.normal(size=(n, 2)), smooth_noise())
+        own_white, own_drift = rng.normal(size=(n, 2)), smooth_noise()
+        common_white, common_drift = pairs[part]
+        a, b = np.sqrt(pair_share), np.sqrt(1.0 - pair_share)
         white = (np.sqrt(TN.CAMERA_SHAKE_SHARE) * shake
-                 + np.sqrt(1.0 - TN.CAMERA_SHAKE_SHARE) * rng.normal(size=(n, 2)))
-        drift = gaussian_filter1d(rng.normal(size=(n, 2)), sigma, axis=0, mode="reflect")
-        drift /= max(float(drift.std()), 1e-12)
+                 + np.sqrt(1.0 - TN.CAMERA_SHAKE_SHARE) * (a * common_white + b * own_white))
+        drift = a * common_drift + b * own_drift
         out[:, i] += leg_px * (white * TN.JITTER[point] * noise.jitter_scale
                                + drift * TN.DRIFT[point] * noise.drift_scale)
     return out

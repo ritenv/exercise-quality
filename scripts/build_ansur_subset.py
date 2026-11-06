@@ -49,6 +49,9 @@ LENGTH_COLUMNS = {
     "footbreadthhorizontal": "foot_breadth_m",
     "heelbreadth": "heel_breadth_m",
     "headbreadth": "head_breadth_m",
+    # widths for the front-view knee check (exercises/squat/front_rubric.py)
+    "bimalleolarbreadth": "bimalleolar_breadth_m",
+    "lowerthighcircumference": "lower_thigh_circumference_m",
 }
 
 FIELDNAMES = ["subject_id", "sex", "age_years", *LENGTH_COLUMNS.values(), "mass_kg"]

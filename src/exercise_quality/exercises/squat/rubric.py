@@ -169,8 +169,8 @@ NOT_GRADED = {
                 "head position conflicts; reported, not graded",
     "thoracic (2)": "chest and shoulder-blade position need spine and scapula points a 2D tracker does not give",
     "lumbar (part of 3)": "a slightly lordotic lower back cannot be seen without spine points",
-    "hip level (4)": "frontal plane, needs a front or back view",
-    "frontal knee (5)": "frontal plane, needs a front or back view",
+    "hip level (4)": "frontal plane, needs a front view: front_rubric.py",
+    "frontal knee (5)": "frontal plane, needs a front view: front_rubric.py",
     "tibial progression (6)": "knees passing the toes is reported, not graded: restricting it moves load to "
                               "the hips and lower back (Fry et al. 2003), and the tracker toe point is not "
                               "the toe tip",

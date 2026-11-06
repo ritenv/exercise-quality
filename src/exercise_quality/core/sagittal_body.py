@@ -237,9 +237,12 @@ class BodyPopulation:
         return self.body(sex, int(rng.integers(self.count(sex))))
 
     def median_measurements(self, sex):
-        rows = self._by_sex[sex]
-        keys = [k for k in rows[0] if k not in ("subject_id", "sex")]
-        return {k: float(np.median([r[k] for r in rows])) for k in keys}
+        cache = self.__dict__.setdefault("_medians", {})
+        if sex not in cache:
+            rows = self._by_sex[sex]
+            keys = [k for k in rows[0] if k not in ("subject_id", "sex")]
+            cache[sex] = {k: float(np.median([r[k] for r in rows])) for k in keys}
+        return dict(cache[sex])
 
     def median_body(self, sex):
         """A typical body from the per-measure medians (not a real person)."""

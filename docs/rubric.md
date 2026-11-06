@@ -54,7 +54,7 @@ Not graded, with reasons (`rubric.NOT_GRADED`):
 
 - **Head (1).** The ear landmark is rough, and coaching advice on the head conflicts. The change in neck angle is reported.
 - **Thoracic position (2) and lower-back curve (part of 3).** These need spine points that a 2D tracker doesn't give.
-- **Hip level (4) and frontal knee (5).** These need a front or back view.
+- **Hip level (4) and frontal knee (5).** These need a front view: see the front-view rubric ([front_rubric.md](front_rubric.md)).
 - **Tibial progression (6).** Knees passing the toes is reported, not graded:
   - restricting it shifts load to the hips and lower back (Fry, Smith and Schilling 2003, *J Strength Cond Res* 17(4):629-633, [PubMed](https://pubmed.ncbi.nlm.nih.gov/14636100/): hip torque about 28 N·m unrestricted vs 303 N·m restricted);
   - the tracker's toe point isn't the toe tip.
@@ -171,7 +171,7 @@ squat_2 fails lockout in every rep (knees 7-19 deg bent at the top, continuous f
 ## Limits
 
 - The BSA is a proposed, unvalidated screen. Its standards (parallel depth, trunk parallel to the shin) suit a general back-squat pattern and aren't the only valid squat. A front squat, a deep squat for mobility or a box squat would need other standards.
-- Only side-view criteria. Knee valgus, hip shift and other frontal-plane faults are invisible here.
+- Only side-view criteria. Knee valgus, hip shift and other frontal-plane faults are invisible here; the front-view rubric grades BSA 4 and 5 ([front_rubric.md](front_rubric.md)).
 - The build allowance rests on the balance model, de Leva mass fractions and Ishida's numbers from 16 young men. It's applied to everyone.
 - Tolerances come from a noise model calibrated on one side-on clip, without tracker lag, and from assumed phone placements.
 - Missing frames (MediaPipe dropouts) are interpolated; ten random dropouts per point plus a 0.5 s gap changed no grade on the side-on clip (`tests/test_rubric.py`). A person facing -x is mirrored with a warning, and poorly visible legs (MediaPipe visibility below 0.5) mark the result unreliable.
