@@ -30,11 +30,11 @@ Every rep was feasible and nobody had to squat shallower than the protocol asked
 |---|---|---|---|---|
 | Peak knee flexion | 122 (5.7) | 121.8 (5.7) | +0.04 | input |
 | Ankle at 60 deg knee | 22.3 (1.8) | 19.3 (4.8) | +0.63 | input + balance correction |
-| Ankle at 90 deg knee | 30.5 (2.8) | 27.8 (5.1) | +0.52 | input + balance correction |
-| Peak ankle | 37.2 (4.0) | 33.8 (4.5) | +0.75 | input + balance correction |
+| Ankle at 90 deg knee | 30.4 (2.7) | 27.8 (5.1) | +0.52 | input + balance correction |
+| Peak ankle | 36.9 (3.8) | 33.8 (4.5) | +0.70 | input + balance correction |
 | Trunk lean at 60 deg knee | 25.0 (4.3) | 22.8 (6.2) | +0.36 | input + balance correction |
-| Trunk lean at 90 deg knee | 34.4 (6.0) | 30.6 (6.6) | +0.57 | input + balance correction |
-| Peak trunk lean | 42.5 (8.8) | 38.5 (7.3) | +0.55 | input + balance correction |
+| Trunk lean at 90 deg knee | 34.5 (6.0) | 30.6 (6.6) | +0.59 | input + balance correction |
+| Peak trunk lean | 43.6 (8.9) | 38.5 (7.3) | +0.70 | input + balance correction |
 | Mean COP, knee > 60 deg | 0.373 (0.071) | 0.363 (0.08) | +0.12 | input, measured dynamically |
 
 ### Kasahara et al. 2024: 13 men and 13 women, arms crossed, "thighs parallel", 2 s descent
@@ -43,26 +43,26 @@ Depth is taken from Ishida (same lab, same instruction); see "Kasahara's depth" 
 
 | Metric | Model mean (SD) | Published mean (SD) | z | Kind |
 |---|---|---|---|---|
-| **Max COM descent, % of height** | 22.8 (1.9) | 23.1 (2.5) | -0.13 | **prediction** |
+| **Max COM descent, % of height** | 22.9 (1.9) | 23.1 (2.5) | -0.09 | **prediction** |
 | COM forward shift start to bottom, % of foot | -5.2 (9.9) | -5.0 (9.6) | -0.02 | input |
-| Trunk ROM | 39.2 (7.4) | 34.7 (11.5) | +0.39 | cross-study check |
-| Hip ROM | 102 (6.8) | 82.7 (6.1) | +3.19 | cross-study check (depth from Ishida) |
+| Trunk ROM | 40.4 (7.5) | 34.7 (11.5) | +0.49 | cross-study check |
+| Hip ROM | 103 (6.6) | 82.7 (6.1) | +3.27 | cross-study check (depth from Ishida) |
 | Knee ROM | 122 (5.7) | 107.2 (11.1) | +1.33 | cross-study check (depth from Ishida) |
-| Ankle ROM | 34.8 (4.1) | 32.8 (5.6) | +0.36 | input (from Ishida) |
-| **Trunk peak time vs lowest COM, ms** | -9.3 (35) | -11.5 (23.6) | +0.10 | **prediction** |
+| Ankle ROM | 34.5 (3.9) | 32.8 (5.6) | +0.31 | input (from Ishida) |
+| **Trunk peak time vs lowest COM, ms** | -8.4 (32) | -11.5 (23.6) | +0.13 | **prediction** |
 | Hip peak time vs lowest COM, ms | 0 | -1.1 (8.6) | +0.13 | fitted |
 | **Knee peak time vs lowest COM, ms** | 0 | 0.4 (3.0) | -0.13 | **prediction** |
-| **Ankle peak time vs lowest COM, ms** | -9.9 (36) | -21 (26.6) | +0.42 | **prediction** |
+| **Ankle peak time vs lowest COM, ms** | -6.9 (19) | -21 (26.6) | +0.53 | **prediction** |
 
 ### Zawadka et al. 2020: 40 men and 20 women, maximum depth, arms forward
 
 | Metric | Men: model | Men: published | Women: model | Women: published | Kind |
 |---|---|---|---|---|---|
 | Knee ROM | 125 (15) | 124.8 (15.5) | 118 (14) | 119.0 (15.1) | input |
-| Ankle ROM | 32.2 (4.5) | 30.3 (6.4) | 32.6 (4.8) | 30.8 (4.9) | cross-study check |
-| Hip ROM (pelvis vs thigh) | 103 (8.4) | 99.6 (11.0) | 99.9 (8.8) | 98.6 (12.2) | fitted |
-| Pelvis tilt ROM | 20.1 (5.7) | 19.6 (8.1) | 21.0 (5.5) | 22.6 (7.5) | fitted |
-| **Lumbar flexion ROM** | 25.7 (12) | 43.7 (15.3), z **-1.18** | 21.4 (12) | 30.1 (14.4), z -0.60 | **prediction** |
+| Ankle ROM | 32.1 (4.4) | 30.3 (6.4) | 32.5 (4.6) | 30.8 (4.9) | cross-study check |
+| Hip ROM (pelvis vs thigh) | 103 (8.3) | 99.6 (11.0) | 100 (8.7) | 98.6 (12.2) | fitted |
+| Pelvis tilt ROM | 20.2 (5.7) | 19.6 (8.1) | 21.2 (5.4) | 22.6 (7.5) | fitted |
+| **Lumbar flexion ROM** | 26.2 (12) | 43.7 (15.3), z **-1.15** | 21.9 (12) | 30.1 (14.4), z -0.57 | **prediction** |
 | **Pelvis peak, % of descent** | 69 | 62 (median) | 73 | 70 (median) | **prediction** |
 | Ankle peak, % of descent | 96 | 87 (median) | 96 | 90 (median) | prediction |
 | Knee peak, % of descent | 100 | 99 (median) | 100 | 99 (median) | prediction |
@@ -71,8 +71,8 @@ Depth is taken from Ishida (same lab, same instruction); see "Kasahara's depth" 
 
 | Metric | Model mean (SD) | Published mean (SD) | z | Kind |
 |---|---|---|---|---|
-| Knee flexion at that moment | 96.3 (7.7) | 100.3 (14.8) | -0.27 | fitted |
-| **Ankle dorsiflexion at that moment** | 29.6 (3.8) | 25.2 (5.2) | +0.84 | **prediction** |
+| Knee flexion at that moment | 96.6 (7.9) | 100.3 (14.8) | -0.25 | fitted |
+| **Ankle dorsiflexion at that moment** | 29.6 (3.8) | 25.2 (5.2) | +0.85 | **prediction** |
 
 ### Standing and sway
 
@@ -91,18 +91,20 @@ Kasahara's instruction was "thighs parallel to the floor", the same as Ishida's 
 
 ## What matches
 
-- **COM descent** (z -0.13), **trunk, knee and ankle peak timing** (|z| <= 0.42) and **pelvis peak timing** (69-73% of descent vs 62-70%). None of these were fitted.
-- **The ankle angle when the pelvis starts tipping back** (z +0.84), predicted from the hip end-range mechanism.
-- **Spreads as well as means.** Trunk SD 8.8 vs 7.3 and knee SD 5.7 vs 5.7. Nobody needs their depth limited.
+- **COM descent** (z -0.09), **trunk, knee and ankle peak timing** (|z| <= 0.53) and **pelvis peak timing** (69-73% of descent vs 62-70%). None of these were fitted.
+- **The ankle angle when the pelvis starts tipping back** (z +0.85), predicted from the hip end-range mechanism.
+- **Spreads as well as means.** Trunk SD 8.9 vs 7.3 and knee SD 5.7 vs 5.7. Nobody needs their depth limited.
 - **Standing and sway** match quiet-standing force-plate data (fitted), and the ground force behaves as Hamed describes across depths.
-- **Smoothness.** No spikes in the ground force and no joint hitting its end range like a wall (`tests/test_realism.py`).
+- **Smoothness.** No spikes in the ground force and no joint hitting its end range like a wall (`tests/test_realism.py`). In a 1500-rep stress test over all three protocols every rep was feasible, every centre of pressure stayed on the foot, and the worst ground-force jerk was 2.8 body weights per second (95th percentile 0.94).
 
 ## Known gaps, most important first
 
-1. **Lumbar flexion reads low** (men z -1.18, women -0.60), and the model has no sex difference to match Zawadka's (men 43.7 vs women 30.1 deg). This is not about where the spine bends. Lumbar flexion as measured is the rib cage relative to the pelvis. The rib-cage lean comes from balance and Ishida's measured lean, and the pelvis from the fitted hip end range, so moving or adding spine joints cannot change it. Splitting the trunk at the rib cage (navel and xiphoid joints, de Leva's three sub-segments) was tested for exactly this and left both numbers unchanged. The gap is in **trunk lean past parallel**: in Zawadka, hip plus lumbar range (143 deg in men) minus thigh rotation (about 95 deg) implies the rib cage turns about 48 deg in men and 40 deg in women at maximum depth. The model's turns about 36 deg for both, and no more in its deepest squats than its shallowest (35.7 vs 36.3 deg in men), because the preferred lean is held at Ishida's value beyond Ishida's depth. Closing this needs a study that reports trunk lean at several depths, not a fit to Zawadka's lumbar row.
-2. **Kasahara's knee and hip ROMs** (+1.33, +3.19) can't be matched together with their COM drop at a single depth; see above.
-3. **Ankle and trunk run a little high** (z +0.4 to +0.75). Preferences use the published outcome means and balance adds a forward correction on top. The correction grew slightly when the trunk was split at the rib cage: the solver now steers the rib cage, and the abdomen below it leans less, so for the same measured lean the body's mass sits a little further back and balance asks for a little more ankle and lean.
-4. **Ankle peak timing.** Zawadka has the ankle peaking at 87-90% of the descent, Kasahara about 21 ms before the knee; the model is at 96% and about 10 ms before. Roughly between the two studies.
+1. **Lumbar flexion reads low** (men z -1.15, women -0.57), and the model has no sex difference to match Zawadka's (men 43.7 vs women 30.1 deg). This is not about where the spine bends. Lumbar flexion as measured is the rib cage relative to the pelvis. The rib-cage lean comes from balance and Ishida's measured lean, and the pelvis from the fitted hip end range, so moving or adding spine joints cannot change it. Splitting the trunk at the rib cage (navel and xiphoid joints, de Leva's three sub-segments) was tested for exactly this and left both numbers unchanged. The gap is in **trunk lean past parallel**: in Zawadka, hip plus lumbar range (143 deg in men) minus thigh rotation (about 95 deg) implies the rib cage turns about 48 deg in men and 40 deg in women at maximum depth. The model's turns about 36 deg for both, and no more in its deepest squats than its shallowest (35.7 vs 36.3 deg in men), because the preferred lean is held at Ishida's value beyond Ishida's depth. Closing this needs a study that reports trunk lean at several depths, not a fit to Zawadka's lumbar row.
+2. **Kasahara's knee and hip ROMs** (+1.33, +3.27) can't be matched together with their COM drop at a single depth; see above.
+3. **Ankle and trunk run a little high** (z +0.3 to +0.7). Preferences use the published outcome means and balance adds a forward correction on top. The correction grew slightly when the trunk was split at the rib cage: the solver now steers the rib cage, and the abdomen below it leans less, so for the same measured lean the body's mass sits a little further back and balance asks for a little more ankle and lean.
+4. **Ankle peak timing.** Zawadka has the ankle peaking at 87-90% of the descent, Kasahara about 21 ms before the knee; the model is at 96% and about 7 ms before. Roughly between the two studies.
+
+5. **Rare extreme leans.** In 1500 reps the median peak trunk lean is 41 deg and the 99th percentile 62 deg, but a handful reach 65-77 deg. They come from several 2 SD draws together (early hip end range, weight far forward on the foot, little ankle use). They stay balanced and smooth, but a real person in that corner would more likely shift their weight back than lean that far.
 
 ## What this does not validate
 
@@ -120,4 +122,4 @@ Kasahara's instruction was "thighs parallel to the floor", the same as Ishida's 
 | Soft hip end range | +1.35 (SD 22) | +0.11 | -1.71 | -0.65 / +0.69 | stiff-ankle people leant up to 80 deg |
 | Shared ankle/trunk correction | +0.51 (SD 7.8) | +0.49 | -1.89 | -0.50 / +0.09 | spreads realistic, nobody depth limited |
 | Smoothing, Kasahara depth, joint weight sampling, sway, refit | +0.35 (SD 7.9) | -0.06 | +0.03 | -1.18 / -0.62 | no force spikes; COM drop solved; lumbar low (see gap 1) |
-| Trunk split at the rib cage, toe joints, left and right limbs (current) | +0.55 (SD 8.8) | +0.10 | -0.13 | -1.18 / -0.60 | lumbar unchanged, which located gap 1 in trunk lean; refit kept share 0.9, onset 105, gain 0.1 |
+| Trunk split at the rib cage, toe joints, left and right limbs, gradual ankle limit (current) | +0.70 (SD 8.9) | +0.13 | -0.09 | -1.15 / -0.57 | lumbar unchanged, which located gap 1 in trunk lean; refit kept share 0.9, onset 105, gain 0.1; nobody leaves their feet in 1500 reps |

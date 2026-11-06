@@ -63,7 +63,7 @@ This describes the balance-constrained squat generator (`exercises/squat/balance
 | Hip end range onset (relative to standing) | see `protocols.HIP_LIMIT` | Fitted mean, Mata's SD. `scripts/calibrate_lumbopelvic.py` |
 | Hip flexion gain past end range | see `protocols.HIP_END_RANGE_GAIN` | Fitted. Onset and gain are constrained together along a ridge, not separately. |
 | Width over which the hip stiffens into end range | 25 deg | Assumption. 8 deg made the hip accelerate about 4x faster than the knee and put bumps in the ground force. |
-| Width of the ankle limit hand-over | 4 deg | Assumption (keeps accelerations continuous) |
+| Width over which the ankle stiffens into its limit | 20 deg | Assumption. 4 deg acted like a wall: in a 1500-rep stress test the trunk took over abruptly, force jerk reached 19 BW/s and 3 people's centre of pressure left the foot. |
 | Style draws truncated | ±2.5 SD | Assumption. Published SDs come from small samples and say nothing about the far tails. |
 | Postural sway | 2 mm COP-like wobble, 0.33 Hz median, per-person spread from Yamamoto | Fitted: reproduces Yamamoto's quiet-standing COP mean velocity (6.3 mm/s) and median frequency (0.33 Hz). Applying the same sway during movement is an assumption. |
 | Lumbar flexion cap | 70 deg | Assumption (flags extreme rounding only) |

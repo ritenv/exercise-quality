@@ -295,9 +295,14 @@ def solve_standing_lean(body, style):
 # flexion in Ishida et al. 2025, where trunk lean was measured.
 TRUNK_REFERENCE_KNEE = 121.8
 
-# How sharply the ankle stops at its limit when a correction pushes it
-# there (degrees). ASSUMPTION, like HIP_LIMIT_BLEND_DEG.
-ANKLE_LIMIT_BLEND_DEG = 4.0
+# Width (degrees) over which the ankle stiffens into its limit when a
+# balance correction pushes it there. ASSUMPTION, like HIP_LIMIT_BLEND_DEG.
+# At 4 deg the ankle stopped like a wall and the trunk had to take over
+# the correction abruptly: in a 1500-rep stress test 3 people's centre of
+# pressure left the foot and ground force jerk reached 19 body weights per
+# second (95th percentile 1.0). At 20 deg everyone stays on the foot and
+# the worst jerk is 2.8.
+ANKLE_LIMIT_BLEND_DEG = 20.0
 
 
 def preferred_trunk(knee, style, peak_knee=None):

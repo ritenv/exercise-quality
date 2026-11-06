@@ -78,3 +78,19 @@ def test_trunk_does_not_get_stuck(reps):
         t = seq.style.timing
         descending = (seq.times > t.descent_start + 0.2) & (seq.times < t.descent_start + 0.8 * t.descent)
         assert np.all(np.abs(np.diff(m["trunk_inclination"][descending])) > 1e-6)
+
+
+def test_ankle_limit_is_not_a_wall():
+    """With a 4 deg hand-over at the ankle limit, a stiff ankle made the
+    trunk take over the balance correction abruptly (force jerk ~8.5 body
+    weights per second here, and some people's centre of pressure left
+    the foot). A gradual limit keeps it below 4 even for a 30 deg ankle,
+    well below the model's normal 45 deg cap."""
+    from exercise_quality.exercises.squat.balanced import JointLimits, SquatStyle
+
+    body = BodyPopulation.load().median_body("male")
+    for limit in (30.0, 35.0):
+        seq = generate_feasible_squat(body, SquatStyle(limits=JointLimits(ankle_dorsiflexion=limit)))
+        d = analyse_dynamics(seq)
+        assert d.stays_on_foot
+        assert np.abs(np.gradient(d.vertical_force, DT)).max() < 4.0
