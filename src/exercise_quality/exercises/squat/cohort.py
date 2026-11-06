@@ -183,7 +183,7 @@ KIND = {
     ("kasahara", "com_descent_pct_height"): "prediction",
     ("kasahara", "com_ap_shift_pct_foot"): "input",
     ("kasahara", "trunk_rom"): "cross-study check",
-    ("kasahara", "hip_rom"): "fitted",
+    ("kasahara", "hip_rom"): "cross-study check (depth from Ishida)",
     ("kasahara", "knee_rom"): "cross-study check (depth from Ishida)",
     ("kasahara", "ankle_rom"): "input (from Ishida)",
     ("kasahara", "trunk_peak_ms"): "prediction",

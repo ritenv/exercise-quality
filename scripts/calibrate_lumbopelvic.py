@@ -15,7 +15,6 @@ the top of its range (1.0): cost 2.1, versus 4.7 at 0.8 and 18.7 at 0.6.
 Fitting targets, chosen because they measure the pelvis and hip directly:
   Zawadka 2020 pelvis tilt ROM (men, women)
   Zawadka 2020 hip ROM (men, women)
-  Kasahara 2024 hip ROM
   Kasahara 2024 hip peak time relative to the lowest COM point
   Mata 2021 knee angle when posterior pelvic tilt begins
 
@@ -32,6 +31,16 @@ refit slid along that ridge to the edge of the grid (onset 70 deg, gain
 standing against Mata's absolute 110 deg, which is not plausible. Mata's
 knee angle at the start of posterior tilt measures where end range
 begins, so it is added as a target to pin the onset down.
+
+The hip end range now blends in over 25 deg rather than 8 (to remove
+force spikes), which makes the hip stiffen earlier for a given onset, so
+the grid also covers higher onsets and a gain of zero.
+
+Kasahara's hip ROM was a target until the Kasahara protocol switched to
+Ishida's depth (its "thighs parallel" instruction; see protocols.py).
+Their hip and knee ROMs fit a shallower squat while their COM drop fits a
+parallel one, so under the parallel depth their hip ROM would pull the
+fit towards the shallower squat. It is now a cross-check only.
 
 The objective is the sum of squared z scores against these. Everything
 else (lumbar flexion, trunk lean, COM descent, timing, Mata's knee angle
@@ -51,8 +60,8 @@ from exercise_quality.exercises.squat import literature as lit
 from exercise_quality.exercises.squat import protocols as p
 from exercise_quality.exercises.squat.cohort import simulate_cohort
 
-GAINS = np.round(np.arange(0.1, 0.501, 0.1), 2)
-HIP_LIMITS = np.arange(75.0, 95.01, 2.5)
+GAINS = np.round(np.arange(0.0, 0.401, 0.1), 2)
+HIP_LIMITS = np.arange(77.5, 100.01, 2.5)
 FPS = 30.0
 
 
@@ -63,7 +72,6 @@ def targets():
         ("zawadka", "female", "pelvis_rom", z["female"]["pelvis_rom"]),
         ("zawadka", "male", "hip_rom", z["male"]["hip_rom"]),
         ("zawadka", "female", "hip_rom", z["female"]["hip_rom"]),
-        ("kasahara", None, "hip_rom", lit.KASAHARA_2024["hip_rom"]),
         ("kasahara", None, "hip_peak_ms", lit.KASAHARA_2024["hip_peak_ms"]),
         # Mata used full-depth squats, mixed sexes: the 50/50 maximal-depth
         # cohort stands in for it
