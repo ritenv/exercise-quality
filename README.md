@@ -17,6 +17,8 @@ The current focus is making the generated movement true to life before any machi
 - Tracks **real videos** with MediaPipe Pose and compares them with synthetic reps of matched people, seen through a **tracker-noise model** measured on real video. See [docs/real_video_check.md](docs/real_video_check.md).
 - Grades squats with a **side-view form rubric**: five criteria from the Back Squat Assessment, plus balance over the foot, lockout at the top and rep-to-rep consistency. The trunk criterion allows for build: someone whose proportions need more forward lean to balance isn't marked down for it. See [docs/rubric.md](docs/rubric.md).
 
+- Has a **3D model** and a **virtual phone camera**: feet apart and turned out, each leg in its own plane, faults such as knees caving in, and MediaPipe-style landmarks from any camera angle, which go through the same code as real video. See [docs/model3d.md](docs/model3d.md).
+
 ## Quick start
 
 Use a native Python (arm64 on Apple silicon): MediaPipe has no wheels for Intel macOS, including Python running under Rosetta.
@@ -35,6 +37,8 @@ PYTHONPATH=src python scripts/stress_test.py 1500              # check 1500 reps
 PYTHONPATH=src python scripts/extract_video_landmarks.py VIDEO # track a video with MediaPipe (model downloads to models/)
 PYTHONPATH=src python scripts/real_video_check.py              # real vs matched synthetic reps (docs/real_video_check.md)
 PYTHONPATH=src python scripts/rubric_report.py                 # rubric on real clips, cohorts and injected faults
+PYTHONPATH=src python scripts/camera_views.py 120               # how camera angle and distance change what is measured
+PYTHONPATH=src python scripts/validate_against_literature.py 200 --3d   # the same validation with the 3D model
 ```
 
 ```python
@@ -72,6 +76,7 @@ src/exercise_quality/
     geometry.py        shared 2D helpers
     observed.py        what a pose tracker sees, and angles from it
     observed_balance.py centre of mass over the foot from a tracked pose
+    model3d.py         3D pose: feet placement, leg planes, frontal faults, 3D hip angles
     tracker_noise.py   MediaPipe-like noise for synthetic tracks
     signal.py          zero-lag low-pass filter
     (skeleton.py, kinematics.py, body.py, body_generator.py, biomechanics.py: first prototype)
@@ -88,6 +93,7 @@ src/exercise_quality/
     (movement.py, movement_v2.py, validation.py, squat_animation.py: first prototype)
   video/
     mediapipe_pose.py  stored MediaPipe tracks -> tracker view, camera-angle correction
+    camera.py          virtual phone camera: 3D rep -> MediaPipe-format landmarks
     compare.py         body matching and matched synthetic reps
   data/                ANSUR II subset, real-video landmark tracks, provenance
 docs/
@@ -96,8 +102,9 @@ docs/
   validation.md        comparison with published data and known gaps
   real_video_check.md  two tracked real videos vs matched synthetic reps
   rubric.md            the form rubric, its sources and how it behaves
+  model3d.md           the 3D model, virtual camera and camera placement
 ```
 
 ## Limits
 
-Side view only, two spine joints, quasi-static planning, young and fit reference populations. Two real videos so far. The rubric is a technique standard, not validated against expert raters. No muscle forces, no medical or injury claims. See [docs/model.md](docs/model.md).
+Side view for grading (the 3D model is new and unchecked from the front), two spine joints, quasi-static planning, young and fit reference populations. Two real videos so far. The rubric is a technique standard, not validated against expert raters. No muscle forces, no medical or injury claims. See [docs/model.md](docs/model.md).

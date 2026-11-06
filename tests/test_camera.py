@@ -1,0 +1,74 @@
+"""Virtual camera: projection, MediaPipe format, and the real-video pipeline on synthetic reps."""
+
+import numpy as np
+import pytest
+
+from exercise_quality.core import model3d as M
+from exercise_quality.core import tracker_noise as TN
+from exercise_quality.core.observed import from_model_landmarks, observed_angles
+from exercise_quality.core.sagittal_body import BodyPopulation
+from exercise_quality.exercises.squat import reps as R
+from exercise_quality.exercises.squat import rubric
+from exercise_quality.exercises.squat.balanced import SquatStyle, generate_squat
+from exercise_quality.video import camera as cam
+from exercise_quality.video import mediapipe_pose as mpp
+
+
+@pytest.fixture(scope="module")
+def body():
+    return M.make_body3d(BodyPopulation.load(), "male", 3)
+
+
+@pytest.fixture(scope="module")
+def seq(body):
+    s = generate_squat(body, SquatStyle(stance=M.Stance(), peak_knee_flexion=120.0), fps=30.0)
+    assert s.is_feasible
+    return s
+
+
+def test_a_far_side_camera_sees_the_orthographic_side_view(seq):
+    far = cam.Camera(azimuth=90.0, distance=200.0, long_side_fov=1.0, lens_height=0.9)
+    track = mpp.observed_track(cam.synthetic_raw(seq, far))
+    assert track.source.endswith(":right") and track.yaw_scale > 0.999
+    exact = observed_angles(R.smoothed(from_model_landmarks(seq.landmarks, seq.fps)))
+    seen = observed_angles(R.smoothed(track))
+    for name in ("knee_flexion", "trunk_inclination", "shank_inclination", "thigh_inclination"):
+        np.testing.assert_allclose(seen[name], exact[name], atol=0.2, err_msg=name)
+
+
+def test_a_near_camera_distorts_angles_by_perspective(seq):
+    near = mpp.observed_track(cam.synthetic_raw(seq, cam.Camera(distance=2.0)))
+    exact = observed_angles(from_model_landmarks(seq.landmarks, seq.fps))
+    seen = observed_angles(near)
+    b = int(np.argmax(exact["knee_flexion"]))
+    assert abs(seen["knee_flexion"][b] - exact["knee_flexion"][b]) > 0.5
+
+
+def test_camera_angle_is_read_back_from_world_landmarks(seq):
+    for azimuth, expected in ((90.0, 1.0), (45.0, np.cos(np.radians(45.0))), (0.0, 0.0)):
+        raw = cam.synthetic_raw(seq, cam.Camera(azimuth=azimuth))
+        assert mpp.world_yaw_scale(raw) == pytest.approx(expected, abs=0.02)
+
+
+def test_the_left_side_camera_tracks_the_left_leg(seq):
+    track = mpp.observed_track(cam.synthetic_raw(seq, cam.Camera(azimuth=-90.0)))
+    assert track.source.endswith(":left")
+    assert np.nanmedian(track["toe"][:, 0] - track["heel"][:, 0]) > 0    # faces +x after mirroring
+
+
+def test_the_rubric_runs_on_a_synthetic_video(seq, body):
+    rng = np.random.default_rng(0)
+    raw = cam.synthetic_raw(seq, cam.Camera(), noise=TN.TrackerNoise(), rng=rng)
+    result = rubric.assess(mpp.observed_track(raw), body=body.sagittal)
+    assert len(result.reps) == 1 and result.reliable
+    front = rubric.assess(mpp.observed_track(cam.synthetic_raw(seq, cam.Camera(azimuth=0.0))),
+                          body=body.sagittal)
+    assert not front.reliable          # a front view is not a side view
+
+
+def test_mediapipe_points_land_where_the_model_puts_them(seq):
+    raw = cam.synthetic_raw(seq, cam.Camera(azimuth=0.0))
+    # front view: the person's right hip (24) appears on the image left
+    assert np.all(raw["image"][:, 24, 0] < raw["image"][:, 23, 0])
+    width = np.linalg.norm(raw["world"][:, 24] - raw["world"][:, 23], axis=-1)
+    np.testing.assert_allclose(width, seq.body.hip_joint_width, rtol=1e-3)

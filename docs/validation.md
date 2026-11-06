@@ -85,6 +85,10 @@ Depth is taken from Ishida (same lab, same instruction); see "Kasahara's depth" 
 
 The sway amplitude and frequency were set to match Yamamoto, so those two rows are fitted. They are tested in `tests/test_sway.py`.
 
+### In 3D
+
+Running the same cohorts with the 3D model (`--3d`; feet apart and turned out as Sinclair 2022's lifters chose) moves most side-view rows closer to the data without refitting: Ishida's ankle and trunk rows go from z +0.4 to +0.7 down to -0.01 to +0.23, and Mata's ankle from +0.85 to +0.35. The 3D model also predicts Sinclair's frontal-plane hip abduction (peak z -0.48, range z -0.13). Details in [model3d.md](model3d.md).
+
 ## Kasahara's depth
 
 Kasahara's instruction was "thighs parallel to the floor", the same as Ishida's (same lab; Kasahara cites that protocol). Their published knee figure, 107 deg, is a range of motion from the starting angle. Used as a peak, it left the model's thighs about 18 deg *above* horizontal and the COM drop at 18% of height against their measured 23% (z -1.89, the largest gap in earlier versions). With Ishida's measured peak (121.8 deg) the thighs are within about 5 deg of parallel and the COM drop matches (z +0.03). No single depth fits all of Kasahara's figures in this model: their knee and hip ROMs fit a shallower squat, while their instruction and COM drop fit a parallel one. A slightly bent standing knee in their data would explain the difference. Their knee and hip ROMs are therefore shown as cross-checks, not used for fitting.

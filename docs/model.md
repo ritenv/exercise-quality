@@ -15,6 +15,8 @@ This describes the balance-constrained squat generator (`exercises/squat/balance
 9. **Check.** The true centre of pressure, including accelerations and segment rotation, is computed (`core/dynamics.py`) to confirm the person would actually stay on their feet.
 10. **Tracker view (optional).** For comparison with real video and for grading, a rep can be reduced to the points MediaPipe Pose reports (`core/observed.py`) and passed through a noise model measured on real video (`core/tracker_noise.py`): jitter, slow landmark drift, and the knees-out projection. See [real_video_check.md](real_video_check.md) and [rubric.md](rubric.md).
 
+11. **3D (optional).** With a stance and a body with breadths, the same angles drive a 3D pose: feet apart and turned out, each leg in its own plane, balance on the 3D centre of mass. A virtual camera reports MediaPipe-style landmarks from any angle. See [model3d.md](model3d.md).
+
 ## Sources
 
 | What | Source | How it was obtained |
@@ -27,6 +29,9 @@ This describes the balance-constrained squat generator (`exercises/squat/balance
 | Maximal-depth squat ranges including pelvis and lumbar spine, arms-forward protocol | Zawadka et al. 2020, J Sports Sci Med 19:500-507 | Journal PDF. |
 | Hip angle when posterior pelvic tilt begins, and its spread | Mata et al. 2021, Int J Exerc Sci 14(1):912-918 | Full text. SD recovered from the 95% CI. |
 | Hip end range causes posterior pelvic tilt and lumbar flexion; depth and trunk-tibia definitions | Straub and Powers 2024, Int J Sports Phys Ther 19(4):490-501 | Narrative review, used for mechanism and definitions only. |
+| Hip joint centre separation (16.0 ± 0.8 cm) | Mullaji et al. 2010, Skeletal Radiol 39:363-368 | Abstract (CT, 200 adults). |
+| Self-selected stance width and toe-out, hip abduction in the squat | Sinclair et al. 2022, Sports (PMC9501107, PMC9503729) | Full text via Europe PMC. 70 male lifters, barbell. |
+| Knee frontal-plane angles stay near zero in a healthy squat | Han et al. 2013, J Hum Kinet 39:59-66 | Full text via Europe PMC. |
 | Quiet-standing centre-of-pressure position (31-58% of foot length) | Fujiwara et al. 2010, J Physiol Anthropol 29(5):197-203 | Abstract (range only). |
 | Quiet-standing sway: centre-of-pressure mean velocity and median frequency | Yamamoto et al. 2015, Physiol Rep 3(3):e12329 | Full text via Europe PMC. |
 | Peak vertical ground force similar across squat depths; sharper bottom transition when fast | Hamed et al. 2025, ISBS Proceedings 43(1) art. 29 | Abstract only (qualitative check). |

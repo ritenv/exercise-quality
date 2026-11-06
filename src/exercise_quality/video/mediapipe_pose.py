@@ -93,9 +93,19 @@ def _face_forward(points):
     return points
 
 
+def _raw(name):
+    """A stored clip by name, or a raw dict as load_raw returns (e.g. video/camera.py)."""
+    if isinstance(name, dict):
+        return name, name.get("name", "synthetic")
+    return load_raw(name), name
+
+
 def observed_track(name, side="auto", correct_yaw=True):
-    """Load a stored track as an ObservedTrack in pixels (person faces +x, y up)."""
-    raw = load_raw(name)
+    """Load a stored track as an ObservedTrack in pixels (person faces +x, y up).
+
+    ``name`` is a stored clip or a raw dict in the same format
+    (``video.camera.synthetic_raw`` makes one from a 3D rep)."""
+    raw, name = _raw(name)
     if side == "auto":
         side, _ = near_side(raw)
     fps = float(raw["fps"])
@@ -111,7 +121,7 @@ def observed_track(name, side="auto", correct_yaw=True):
 
 def world_plane_track(name, side="auto"):
     """The 3D world landmarks projected onto the body's sagittal plane (metres)."""
-    raw = load_raw(name)
+    raw, name = _raw(name)
     if side == "auto":
         side, _ = near_side(raw)
     world = _points(raw, side, raw["world"])
