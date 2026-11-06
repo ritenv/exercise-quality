@@ -18,9 +18,10 @@ These apply to the sagittal model (`core/sagittal_model.py` and everything built
 | `ankle` | ankle joint centre, at lateral malleolus height | LMAL |
 | `knee` | knee joint centre | KJC |
 | `hip` | midpoint of the two hip joint centres | MIDH |
+| `lumbar` | lumbar joint, at navel (omphalion) height on the trunk | OMPH level |
 | `neck` | 7th cervical vertebra | CERV |
 | `vertex` | top of the head | VERT |
-| `shoulder` | shoulder joint centre, on the trunk line below C7 | SJC |
+| `shoulder` | shoulder joint centre, on the thorax line below C7 | SJC |
 | `elbow`, `wrist` | joint centres | EJC, WJC |
 | `hand` | head of the 3rd metacarpal (knuckle) | MET3 |
 
@@ -28,7 +29,7 @@ Left and right sides overlap in this view, so there is one leg and one arm. Each
 
 ## Segment angles (absolute)
 
-- Leg, trunk and head: **inclination from vertical-up**, positive when the top of the segment is forward of its bottom. A shank leaning over the toes is positive. A thigh in a squat points back from the knee to the hip, so it is negative (around -90 when horizontal).
+- Leg, pelvis, thorax and head: **inclination from vertical-up**, positive when the top of the segment is forward of its bottom. A shank leaning over the toes is positive. A thigh in a squat points back from the knee to the hip, so it is negative (around -90 when horizontal).
 - Arm segments: **angle from vertical-down**, positive when swung forward. 0 hangs straight down, 90 points forward, 180 points straight up.
 
 ## Joint angles (anatomical, zero in upright standing)
@@ -37,15 +38,16 @@ Left and right sides overlap in this view, so there is one leg and one arm. Each
 |---|---|---|
 | `ankle_dorsiflexion` | shank tips forward over a flat foot | shank = ankle |
 | `knee_flexion` | knee bends | thigh = shank - knee |
-| `hip_flexion` | trunk folds towards the thigh | trunk = thigh + hip |
-| `neck_flexion` | head tips forward relative to the trunk | head = trunk + neck |
-| `shoulder_flexion` | arm raised forward relative to the trunk | upper arm = shoulder - trunk |
+| `hip_flexion` | pelvis tips forward relative to the thigh (true hip flexion) | pelvis = thigh + hip |
+| `lumbar_flexion` | thorax bends forward relative to the pelvis (lower back rounds) | thorax = pelvis + lumbar |
+| `neck_flexion` | head tips forward relative to the thorax | head = thorax + neck |
+| `shoulder_flexion` | arm raised forward relative to the thorax | upper arm = shoulder - thorax |
 | `elbow_flexion` | forearm bends forward/up | forearm = upper arm + elbow |
 | `wrist_flexion` | hand bends relative to the forearm | hand = forearm + wrist |
 
-`hip_flexion` is the angle between the thigh and a rigid trunk that runs from the hips to C7. In real people that motion is shared between the hip joint, the pelvis and the lumbar spine. Studies that report "hip flexion" (pelvis vs thigh) give smaller numbers than this model's `hip_flexion`, so comparisons with them have to add lumbar and pelvic motion.
+The trunk is two rigid segments split at navel height, following de Leva's lower trunk (pelvis) and middle plus upper trunk (thorax). Real lumbar flexion is spread over five vertebrae; one joint is the simplest split that matches the mass data.
 
-**Trunk inclination**, the forward lean of the hip-to-C7 line from vertical, is the quantity most squat studies report as "trunk lean" or "forward trunk inclination".
+**Trunk inclination** (`trunk_inclination` from `measure_joint_angles`) is the forward lean of the **thorax** (navel level to C7) from vertical, the quantity squat studies report as "trunk lean" or "forward trunk inclination". **Pelvis inclination** is the forward tilt of the hip-to-navel line; standing is 0, anterior tilt is positive, and a drop after its peak is posterior pelvic tilt.
 
 ## Foot and support
 
