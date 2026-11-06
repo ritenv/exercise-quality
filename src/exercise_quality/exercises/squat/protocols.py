@@ -61,11 +61,16 @@ ANKLE_COUPLING = (1.27, 0.1)
 # share (clipped at 1) is an ASSUMPTION.
 PELVIS_SHARE = (1.0, 0.05)
 HIP_LIMIT = (85.0, lit.MATA_2021["hip_at_ppt_absolute"].sd)
-# Soft end range (second fit, gain x onset grid with Kasahara's hip timing
-# added): gain 0.1 at 85 deg, cost 2.22, all six targets |z| < 1. The
-# data constrain the pair along a ridge (gain 0.1-0.3 with onset 85-75
-# deg all cost 2.2-2.4), so neither value is pinned down on its own.
-HIP_END_RANGE_GAIN = 0.1
+# Soft end range. Final fit (gain x onset grid, after the ankle and trunk
+# started sharing the balance correction, with Kasahara's hip timing and
+# Mata's knee angle at the start of posterior tilt added as targets):
+# gain 0.2 at 85 deg, cost 4.09 over 7 targets. Two targets pull against
+# each other: Mata's knee angle wants a later onset (model z -1.19) and
+# Kasahara's hip ROM an earlier one (z +1.26), so one onset plus a gain is
+# a simplification of a more gradual or individual end range. Onset 85
+# deg relative to standing vs Mata's absolute 110 deg implies about 25 deg
+# of hip flexion in marker-based standing posture (not verified).
+HIP_END_RANGE_GAIN = 0.2
 
 # Preferred trunk lean (deg) at Ishida's peak knee angle: the published
 # peak trunk inclination and its between-subject SD, used directly. The

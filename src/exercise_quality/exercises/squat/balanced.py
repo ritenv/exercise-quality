@@ -89,7 +89,7 @@ class JointLimits:
     ankle_dorsiflexion: float = 45.0
     knee_flexion: float = 157.0
     hip_flexion: float = 85.0
-    hip_end_range_gain: float = 0.1
+    hip_end_range_gain: float = 0.2
     lumbar_flexion: float = 70.0
 
 

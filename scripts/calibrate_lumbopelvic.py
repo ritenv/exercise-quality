@@ -17,6 +17,7 @@ Fitting targets, chosen because they measure the pelvis and hip directly:
   Zawadka 2020 hip ROM (men, women)
   Kasahara 2024 hip ROM
   Kasahara 2024 hip peak time relative to the lowest COM point
+  Mata 2021 knee angle when posterior pelvic tilt begins
 
 The range-of-motion targets alone cannot separate a hard stop at 90 deg
 from a softer end range that starts lower (a first grid over gains 0-0.5
@@ -24,6 +25,13 @@ found a flat ridge: gain 0 at 90 deg cost 2.16, gain 0.4 at 72.5 deg cost
 2.91). The hip timing target separates them: with a hard stop the hip
 plateaus and peaks long before the bottom, while Kasahara measured it
 peaking at the bottom (-1.1 +- 8.6 ms).
+
+After the ankle and trunk started sharing the balance correction, the
+refit slid along that ridge to the edge of the grid (onset 70 deg, gain
+0.4). An onset that low would mean about 40 deg of hip flexion in
+standing against Mata's absolute 110 deg, which is not plausible. Mata's
+knee angle at the start of posterior tilt measures where end range
+begins, so it is added as a target to pin the onset down.
 
 The objective is the sum of squared z scores against these. Everything
 else (lumbar flexion, trunk lean, COM descent, timing, Mata's knee angle
@@ -44,7 +52,7 @@ from exercise_quality.exercises.squat import protocols as p
 from exercise_quality.exercises.squat.cohort import simulate_cohort
 
 GAINS = np.round(np.arange(0.1, 0.501, 0.1), 2)
-HIP_LIMITS = np.arange(70.0, 87.51, 2.5)
+HIP_LIMITS = np.arange(75.0, 95.01, 2.5)
 FPS = 30.0
 
 
@@ -57,6 +65,9 @@ def targets():
         ("zawadka", "female", "hip_rom", z["female"]["hip_rom"]),
         ("kasahara", None, "hip_rom", lit.KASAHARA_2024["hip_rom"]),
         ("kasahara", None, "hip_peak_ms", lit.KASAHARA_2024["hip_peak_ms"]),
+        # Mata used full-depth squats, mixed sexes: the 50/50 maximal-depth
+        # cohort stands in for it
+        ("zawadka", None, "knee_at_ppt", lit.MATA_2021["knee_at_ppt"]),
     ]
 
 
