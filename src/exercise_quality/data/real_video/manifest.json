@@ -1,0 +1,37 @@
+{
+  "_about": "MediaPipe Pose tracks of third-party videos. The videos are not in the repository; video_sha256 identifies the exact file. apparent_sex is an assumption from appearance, used only to pick the ANSUR II sample for body matching.",
+  "squat_1": {
+    "apparent_sex": "female",
+    "arms": "hands behind the head",
+    "footwear": "trainers",
+    "fps": 29.97002997002997,
+    "frames": 536,
+    "frames_without_person": 0,
+    "height": 720,
+    "mediapipe_version": "1.2.2",
+    "model": "pose_landmarker_heavy.task",
+    "model_sha256": "64437af838a65d18e5ba7a0d39b465540069bc8aae8308de3e318aad31fcbc7b",
+    "notes": "trainer demonstration video, continuous reps; the last rep is a 'sit back' squat with vertical shins",
+    "video_file": "squat_1.mp4",
+    "video_sha256": "6e3b89c814f4e4f2c33efa71b95b6e9db747122102aa7c5d193ac5eb84421e92",
+    "view": "side-on, camera pans and zooms slightly",
+    "width": 1280
+  },
+  "squat_2": {
+    "apparent_sex": "male",
+    "arms": "hands clasped in front of the chest",
+    "footwear": "barefoot",
+    "fps": 29.97002997002997,
+    "frames": 916,
+    "frames_without_person": 0,
+    "height": 720,
+    "mediapipe_version": "1.2.2",
+    "model": "pose_landmarker_heavy.task",
+    "model_sha256": "64437af838a65d18e5ba7a0d39b465540069bc8aae8308de3e318aad31fcbc7b",
+    "notes": "trainer demonstration video; starts with a setup bend, then continuous reps",
+    "video_file": "squat_2.mp4",
+    "video_sha256": "e07eb38bf174ffd2a193a82b86d5139813543aeabf8fd2d9d5bc8d93e57d822f",
+    "view": "about 45-50 deg from side-on (front-left), fixed camera",
+    "width": 1280
+  }
+}
