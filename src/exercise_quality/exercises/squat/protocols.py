@@ -97,6 +97,17 @@ TRUNK_COUPLING = 1.25
 # limited). Real people evidently spread the correction across joints.
 ANKLE_COMPENSATION_SHARE = 0.5
 
+# Postural sway (core/sway.py). A 2 mm COP-like wobble with a 0.33 Hz
+# median frequency reproduces Yamamoto et al. 2015's quiet-standing COP
+# (mean velocity 6.3 mm/s, median frequency 0.33 Hz) at 60 fps. Spread
+# between people uses their between-subject SDs: log10 mean velocity SD
+# 0.097 (velocity scales linearly with the amplitude) and median
+# frequency SD 0.071 Hz. Applying quiet-standing sway during the squat
+# itself is an ASSUMPTION; movement probably adds more.
+SWAY_AMPLITUDE_M = 0.002
+SWAY_LOG10_SD = 0.097
+SWAY_MEDIAN_HZ = (0.329, 0.071)
+
 # How much of the trunk lean the head follows (0 = head stays upright,
 # 1 = head in line with the trunk). ASSUMPTION, no data used.
 HEAD_FOLLOW_RANGE = (0.3, 0.7)
@@ -259,6 +270,9 @@ def sample_style(rng, body, protocol=ISHIDA_PARALLEL,
         head_follow=float(rng.uniform(*HEAD_FOLLOW_RANGE)),
         pelvis_share=_normal(rng, pelvis_share, 0.5, 1.0),
         trunk_peak_preference=_normal(rng, TRUNK_PREFERENCE, 5.0, 80.0),
+        sway_amplitude=SWAY_AMPLITUDE_M * 10 ** _normal(rng, (0.0, SWAY_LOG10_SD)),
+        sway_median_hz=_normal(rng, SWAY_MEDIAN_HZ, 0.15, 0.6),
+        sway_seed=int(rng.integers(2**31)),
         trunk_coupling=TRUNK_COUPLING,
         ankle_compensation_share=ANKLE_COMPENSATION_SHARE,
         arms=protocol.arms,

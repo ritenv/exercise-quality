@@ -37,6 +37,7 @@ from exercise_quality.core.sagittal_model import (
     forward_kinematics,
     measure_joint_angles,
 )
+from exercise_quality.core.sway import sway_noise
 from exercise_quality.core.timing import RepTiming
 
 TRUNK_SEARCH_DEG = np.arange(-60.0, 130.0 + 1e-9, 1.0)
@@ -120,6 +121,12 @@ class SquatStyle:
     com_target_shift: float = -0.05
     timing: RepTiming = field(default_factory=RepTiming)
     limits: JointLimits = field(default_factory=JointLimits)
+    # Postural sway: SD (metres) of the COP-like wobble the balance target
+    # follows (0 = perfectly still), its median frequency, and the seed
+    # that makes it reproducible. See core/sway.py.
+    sway_amplitude: float = 0.0
+    sway_median_hz: float = 0.33
+    sway_seed: int = 0
 
     @property
     def com_target_start(self):
@@ -408,6 +415,12 @@ def generate_squat(body, style=None, fps=100.0):
                        + (style.com_target_bottom - style.com_target_start)
                        * knee_profile)
     target_x = support.x_at(target_fraction)
+    if style.sway_amplitude > 0:
+        standing = _angles_for_trunk(lean, 0.0, lean, style)
+        com_height = float(centre_of_mass(body, forward_kinematics(body, standing))[1])
+        target_x = target_x + style.sway_amplitude * sway_noise(
+            len(times), fps, np.random.default_rng(style.sway_seed), style.sway_median_hz,
+            pendulum_height=com_height)
 
     correction = solve_correction(body, ankle_base, knee, trunk_base, target_x, style)
     if np.isnan(correction).any():
