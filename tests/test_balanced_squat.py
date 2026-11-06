@@ -158,12 +158,12 @@ def test_lumbar_limit_is_flagged(body):
 
 
 def test_spine_stays_neutral_until_the_hip_limit_with_full_pelvis_share(body):
-    seq = generate_squat(body, SquatStyle(pelvis_share=1.0, limits=JointLimits(hip_flexion=140.0)))
+    seq = generate_squat(body, SquatStyle(pelvis_share=1.0, limits=JointLimits(hip_flexion=170.0)))
     np.testing.assert_allclose(seq.measured()["lumbar_flexion"], 0.0, atol=1e-6)
 
 
 def test_pelvis_share_splits_flexion_between_hip_and_spine(body):
-    seq = generate_squat(body, SquatStyle(pelvis_share=0.6, limits=JointLimits(hip_flexion=140.0)))
+    seq = generate_squat(body, SquatStyle(pelvis_share=0.6, limits=JointLimits(hip_flexion=170.0)))
     m = seq.measured()
     total = m["hip_flexion"] + m["lumbar_flexion"]
     moving = total > 1.0
@@ -230,14 +230,35 @@ def test_non_mobility_problems_are_not_hidden(body):
 def test_preferred_trunk_curve():
     from exercise_quality.exercises.squat.balanced import TRUNK_REFERENCE_KNEE, preferred_trunk
 
-    style = SquatStyle(trunk_peak_preference=40.0, trunk_coupling=1.25)
-    assert preferred_trunk(0.0, style) == pytest.approx(0.0)
-    assert preferred_trunk(TRUNK_REFERENCE_KNEE, style) == pytest.approx(40.0)
-    assert preferred_trunk(TRUNK_REFERENCE_KNEE + 20, style) == pytest.approx(40.0)  # flat beyond
+    at_reference = SquatStyle(peak_knee_flexion=TRUNK_REFERENCE_KNEE,
+                              trunk_peak_preference=40.0, trunk_coupling=1.25)
+    assert preferred_trunk(0.0, at_reference) == pytest.approx(0.0)
+    assert preferred_trunk(TRUNK_REFERENCE_KNEE, at_reference) == pytest.approx(40.0)
     # front loaded like Ishida's data: well over half the lean by 60 deg knee
-    assert 0.55 < preferred_trunk(60.0, style) / 40.0 < 0.65
+    assert 0.55 < preferred_trunk(60.0, at_reference) / 40.0 < 0.65
+    # deeper squats keep Ishida's peak lean, spread over their own range
+    deep = SquatStyle(peak_knee_flexion=145.0, trunk_peak_preference=40.0)
+    assert preferred_trunk(145.0, deep) == pytest.approx(40.0)
+    # shallower squats stop where Ishida's curve is at that depth
+    shallow = SquatStyle(peak_knee_flexion=90.0, trunk_peak_preference=40.0)
+    expected = preferred_trunk(90.0, at_reference)
+    assert preferred_trunk(90.0, shallow) == pytest.approx(expected)
     no_pref = SquatStyle(trunk_peak_preference=None)
     assert preferred_trunk(90.0, no_pref) == pytest.approx(0.0)
+
+
+def test_preferred_trunk_has_no_kink_through_the_rep():
+    """Second differences of the preference stay bounded through a deep
+    squat (they blew up at 121.8 deg before)."""
+    from exercise_quality.exercises.squat.balanced import preferred_trunk
+
+    style = SquatStyle(peak_knee_flexion=140.0, trunk_peak_preference=40.0)
+    t = style.timing.times(200)
+    knee = 140.0 * style.timing.profile(t)
+    trunk = preferred_trunk(knee, style)
+    accel = np.abs(np.diff(trunk, 2)) * 200**2
+    knee_accel = np.abs(np.diff(knee, 2)) * 200**2
+    assert accel.max() < 2.0 * knee_accel.max()
 
 
 def test_balance_correction_is_shared_between_ankle_and_trunk(body):

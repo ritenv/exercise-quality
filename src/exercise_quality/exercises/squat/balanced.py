@@ -175,11 +175,15 @@ class SquatSequence:
         return not self.flags
 
 
-# Width (degrees) over which the pelvis hands over from following the
-# thorax to being carried by the thigh. Smoothing avoids an instant change
-# in pelvic speed, which would show up as a spike in the dynamics.
-# ASSUMPTION: 8 deg; the hip still never exceeds its limit.
-HIP_LIMIT_BLEND_DEG = 8.0
+# Width (degrees) over which the hip stiffens into its end range. Real end
+# range builds up gradually as tissue compresses. With a narrow 8 deg
+# blend the hip swept through it so fast that its angular acceleration was
+# about 4x the knee's (median over a mixed cohort; 7x at the 95th
+# percentile) and the ground force showed visible bumps. 25 deg brings the
+# hip in line with the knee (1.6x median) and halves force jerk. Still an
+# ASSUMPTION about the shape of end range; the hip never exceeds what the
+# blended limit allows.
+HIP_LIMIT_BLEND_DEG = 25.0
 
 
 def smooth_min(a, b, width):
@@ -285,17 +289,28 @@ TRUNK_REFERENCE_KNEE = 121.8
 ANKLE_LIMIT_BLEND_DEG = 4.0
 
 
-def preferred_trunk(knee, style):
+def preferred_trunk(knee, style, peak_knee=None):
     """Trunk lean the person would choose at this knee angle, before any
     balance correction (degrees, excluding the standing lean).
 
-    Same curve family as the ankle coupling, anchored at Ishida's peak
-    knee angle; flat beyond it.
+    The size comes from the published curve at the person's own peak
+    depth: trunk_peak_preference x (1 - (1 - r) ** coupling) with
+    r = peak / TRUNK_REFERENCE_KNEE (Ishida's depth), flat beyond it.
+    Within the rep the same curve shape is spread over the person's own
+    knee range, like the ankle coupling. Shaping over the absolute knee
+    angle instead would give the curve infinite curvature wherever a
+    squat passed 121.8 deg while still moving, which showed up as spikes
+    in the ground force.
     """
+    knee = np.asarray(knee, dtype=float)
     if style.trunk_peak_preference is None:
-        return np.zeros_like(np.asarray(knee, dtype=float))
-    u = np.clip(np.asarray(knee, dtype=float) / TRUNK_REFERENCE_KNEE, 0.0, 1.0)
-    return style.trunk_peak_preference * (1.0 - (1.0 - u) ** style.trunk_coupling)
+        return np.zeros_like(knee)
+    peak = style.peak_knee_flexion if peak_knee is None else peak_knee
+    gamma = style.trunk_coupling
+    reach = min(peak / TRUNK_REFERENCE_KNEE, 1.0)
+    amplitude = style.trunk_peak_preference * (1.0 - (1.0 - reach) ** gamma)
+    u = np.clip(knee / peak, 0.0, 1.0)
+    return amplitude * (1.0 - (1.0 - u) ** gamma)
 
 
 def split_correction(ankle_base, trunk_base, correction, style):
