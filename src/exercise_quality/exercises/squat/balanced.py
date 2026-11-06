@@ -266,7 +266,7 @@ def _com_x(body, ankle, knee, trunk, style):
     return centre_of_mass(body, lm)[..., 0]
 
 
-def _bisect(fn, lo, hi, iterations=60):
+def _bisect(fn, lo, hi, iterations=40):
     """Vectorised bisection; fn(lo) and fn(hi) must have opposite signs."""
     f_lo = fn(lo)
     for _ in range(iterations):

@@ -295,3 +295,28 @@ def test_longer_thigh_uses_both_more_ankle_and_more_lean(body):
     longer = generate_squat(dataclasses.replace(body, thigh=body.thigh * 1.12), SquatStyle())
     assert longer.measured()["ankle_dorsiflexion"].max() > base.measured()["ankle_dorsiflexion"].max() + 1.0
     assert peak_trunk(longer) > peak_trunk(base) + 1.0
+
+
+def test_both_sides_move_together_and_heels_stay_down(rep):
+    """A bodyweight squat is symmetric, and every study used here told
+    people to keep their heels down."""
+    for name, xy in rep.landmarks.items():
+        if name.startswith("right_"):
+            np.testing.assert_allclose(xy, rep.landmarks["left_" + name[6:]], atol=1e-9)
+    m = rep.measured()
+    for side in ("right", "left"):
+        np.testing.assert_allclose(rep.landmarks[f"{side}_heel"][:, 1], 0.0, atol=1e-9)
+        np.testing.assert_allclose(rep.landmarks[f"{side}_toe"][:, 1], 0.0, atol=1e-9)
+        np.testing.assert_allclose(m[f"{side}_toe_extension"], 0.0, atol=1e-9)
+
+
+def test_lower_back_rounds_at_both_spine_joints(body):
+    """Past the hip end range the rounding shows up at the navel and at
+    the rib cage, so the back curves instead of folding at one point."""
+    seq = generate_squat(body, SquatStyle(peak_knee_flexion=140))
+    m = seq.measured()
+    bottom = int(np.argmax(m["knee_flexion"]))
+    assert m["lower_lumbar_flexion"][bottom] > 5.0
+    assert m["upper_lumbar_flexion"][bottom] > 2.0
+    np.testing.assert_allclose(m["lower_lumbar_flexion"] + m["upper_lumbar_flexion"],
+                               m["lumbar_flexion"], atol=1e-9)

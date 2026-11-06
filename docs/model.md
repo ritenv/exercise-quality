@@ -4,12 +4,12 @@ This describes the balance-constrained squat generator (`exercises/squat/balance
 
 ## Pipeline
 
-1. **Body.** A real person is drawn from ANSUR II (`core/sagittal_body.py`). Their measured standing heights (lateral malleolus, tibiale, trochanterion, navel, C7, acromion) and limb lengths are converted to joint-centre positions with de Leva's landmark-to-joint offsets. Proportions are never randomised independently, so every body shape is one that was actually measured.
-2. **Mass.** Each segment gets de Leva's sex-specific mass fraction and centre-of-mass location (`core/deleva.py`, `core/balance.py`). The trunk is split at the navel into a pelvis (de Leva's lower trunk) and a thorax (middle plus upper trunk combined). Left and right limbs overlap in the side view and are modelled as one limb with double mass.
+1. **Body.** A real person is drawn from ANSUR II (`core/sagittal_body.py`). Their measured standing heights (lateral malleolus, tibiale, trochanterion, navel, C7, acromion), heel-to-ball length and limb lengths are converted to joint-centre positions with de Leva's landmark-to-joint offsets. Proportions are never randomised independently, so every body shape is one that was actually measured.
+2. **Mass.** Each segment gets de Leva's sex-specific mass fraction and centre-of-mass location (`core/deleva.py`, `core/balance.py`). The trunk is de Leva's three sub-segments: pelvis (hips to navel), abdomen (navel to xiphoid) and thorax (the rib cage, xiphoid to C7). Left and right limbs are separate segments, each with its own mass; in a symmetric squat they overlap in the side view. The foot is split at the ball into rearfoot and toes, with all of de Leva's foot mass on the rearfoot.
 3. **Style.** Each person gets a squat strategy drawn from published between-subject spreads (`exercises/squat/protocols.py`): depth, preferred ankle and trunk patterns, where they keep their weight on the foot, hip end range, arm position and tempo.
 4. **Motion.** The knee follows a minimum-jerk curve in real seconds. The preferred ankle and trunk angles follow the knee through couplings fitted to measured curves.
 5. **Balance.** For every frame, one correction is **solved** so the whole-body centre of mass sits over the person's target point on the foot. The correction is shared between the ankle and the trunk, so body proportions change both: longer thighs mean more ankle bend *and* more forward lean.
-6. **Hip end range and spine.** The pelvis follows the thorax until the hip nears its end range. Past that point the hip only creeps further, the thigh carries the pelvis into posterior tilt, and the lower back rounds (Mata et al. 2021).
+6. **Hip end range and spine.** The balance solver steers the rib cage, the segment squat studies measure as the trunk. The pelvis follows it until the hip nears its end range. Past that point the hip only creeps further, the thigh carries the pelvis into posterior tilt, and the lower back rounds (Mata et al. 2021). The rounding is shared between the two spine joints.
 7. **Feasibility.** If someone can't reach the requested depth without falling backwards or rounding their back past its limit, they squat as deep as they can (`generate_feasible_squat`), as a real person would. The rep is noted `depth_limited_by_mobility`.
 8. **Sway.** A slow random wobble of the balance target (shaped like quiet-standing centre-of-pressure data and passed through the inverted-pendulum relation to the centre of mass) keeps people from standing unnaturally still. The solver turns it into small ankle and trunk motion.
 9. **Check.** The true centre of pressure, including accelerations and segment rotation, is computed (`core/dynamics.py`) to confirm the person would actually stay on their feet.
@@ -19,7 +19,7 @@ This describes the balance-constrained squat generator (`exercises/squat/balance
 | What | Source | How it was obtained |
 |---|---|---|
 | Segment mass fractions, centre-of-mass locations, radii of gyration, joint-centre offsets, trunk sub-segments | de Leva P. 1996, J Biomech 29(9):1223-1230, Tables 2 and 4 | Two independent secondary transcriptions that agree: BMClab/BMC `data/BSP_ZdeLeva.txt`, and samchon/automovie notes read from a scan of the paper. Mass fractions sum to 100.00% (men) and 99.99% (women). The stacked trunk sub-segments reproduce de Leva's whole-trunk centre of mass to 3 mm (men) and 0 mm (women). |
-| Body dimensions, including navel height | ANSUR II (Gordon et al. 2015, NATICK/TR-15/007), 4082 men and 1986 women | Public-domain CSVs from the Penn State OPEN Design Lab. Subset in `src/exercise_quality/data/`. |
+| Body dimensions, including navel height and heel-to-ball length | ANSUR II (Gordon et al. 2015, NATICK/TR-15/007), 4082 men and 1986 women | Public-domain CSVs from the Penn State OPEN Design Lab. Subset in `src/exercise_quality/data/`. |
 | Movement smoothness | Flash and Hogan 1985, J Neurosci 5(7):1688-1703 | Minimum-jerk profile, plus a via-point version for reps with no pause at the bottom. |
 | Depth, ankle and trunk patterns and their spreads, weight position on the foot, tempo | Ishida et al. 2025, Orthop J Sports Med 13(3) | Full text via Europe PMC. Natural condition, 16 men. |
 | Forward shift of the COM during descent, its correlation with ankle motion (R = 0.398), hip range and timing | Kasahara et al. 2024, J Hum Kinet 93:29-39 | Full text via Europe PMC. |
@@ -42,7 +42,12 @@ This describes the balance-constrained squat generator (`exercises/squat/balance
 | Ankle joint centre at lateral malleolus height | | Assumption (common convention) |
 | Heel behind ankle | 21% of foot length, same for everyone | Secondary source |
 | Upright standing is perfectly stacked (C7 above the navel above the hips) | | Assumption. Real posture has spinal curves. |
-| Trunk split at the navel, one lumbar joint | | Assumption. Real lumbar flexion is spread over five vertebrae. |
+| Trunk split at the navel and xiphoid, two spine joints | | de Leva's sub-segment boundaries. Real flexion is spread over many vertebrae. |
+| Xiphoid height | 47% of navel-to-C7 | de Leva's sample proportion; ANSUR II has no xiphoid height |
+| Share of lumbar flexion at the upper (xiphoid) joint | 0.35 | Fitted from per-level lumbar motion ranges (Cheng et al. 2013, Table 3, with Pearcy 1984, Dvorak 1991, White and Panjabi 1990): 34-38% at L1-L3. L5-S1 taken as equal to L4-L5. Using motion ranges as the squat split is an assumption. |
+| Toe joint position | ANSUR II heel-to-ball length (74% of foot length) | Data. Measured to the first metatarsal head; used as the side-view toe axis. |
+| Foot mass all on the rearfoot | | Assumption. de Leva gives no toe split; toes are a small part of foot mass. |
+| Camera on the person's right | | Convention. Right limbs are the near side. |
 | Foot stays flat (no heel lift) | | Matches the "heels down" instruction in all the studies |
 | Preferred ankle excursion (ankle / peak knee) | 0.278 ± 0.037 | Fitted (Ishida peak ankle / peak knee) |
 | Ankle-knee coupling exponent | 1.27 ± 0.1 | Fitted mean (Ishida 60 and 90 deg points). The SD is an assumption. |
@@ -75,7 +80,8 @@ This describes the balance-constrained squat generator (`exercises/squat/balance
 ## Known limitations
 
 - **Preferences come from outcome data.** Each person's preferred ankle and trunk patterns use the published *outcome* means and spreads. Balance then adds a correction on top, so simulated ankle and trunk means come out a few degrees above the published ones (see validation.md). Re-centring the preferences would remove this, but only by fitting those means away.
-- **One lumbar joint, at navel height.** The real lower back bends over five vertebrae. The model's joint sits where de Leva's mass data splits the trunk (navel, about L3/L4), so motion at L4-S1 is lumped into the "pelvis". That is the likeliest reason model lumbar flexion reads low against marker-based studies (validation.md, gap 1).
+- **Two spine joints.** The real back bends over many vertebrae. The model bends at the navel and the xiphoid, de Leva's mass boundaries, and nothing below the navel (L4-S1 sits inside the "pelvis"). Lumbar flexion as studies measure it (rib cage relative to pelvis) is unaffected by where the joints are, because the rib-cage lean comes from balance and the pelvis from the hip end range; see validation.md, gap 1.
+- **Trunk lean past parallel.** The preferred trunk lean is held at Ishida's value for squats deeper than Ishida's (121.8 deg knee). No study used here reports how lean grows past parallel, so deep squats lean no further than parallel ones except through balance.
 - **Side view only.** No knee valgus, stance width, foot turn-out or left-right asymmetry.
 - **Quasi-static balance.** Each frame is balanced as if still. Dynamics are checked afterwards, not used to plan the motion. This is fine at normal tempos (centre of pressure within about 7 mm of the plan at 2 s per phase) but not for fast or bouncy reps.
 - **Populations.** ANSUR II is US Army personnel. de Leva is young Russian PE students. The squat studies are young, healthy, mostly Japanese, Polish and US adults. Older, heavier, injured or very mobile people are not represented.

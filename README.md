@@ -9,7 +9,8 @@ The current focus is making the generated movement true to life before any machi
 - Builds bodies from **real people** (ANSUR II, 6068 adults), not random limb lengths.
 - Gives them **published mass distribution** (de Leva 1996) and computes the whole-body centre of mass.
 - Generates squats in **real seconds** with minimum-jerk motion. **Balance is solved every frame**, with the correction shared between ankle and trunk, so long thighs or stiff ankles change the squat without being programmed in.
-- Splits the trunk into **pelvis and thorax**, so the pelvis tips back and the lower back rounds once the hip runs out of range, as measured in real squats. People who can't reach the requested depth squat as deep as their body allows.
+- Splits the trunk into **pelvis, abdomen and rib cage** (de Leva's three trunk parts) joined by two spine joints, so the pelvis tips back and the lower back rounds once the hip runs out of range, as measured in real squats. People who can't reach the requested depth squat as deep as their body allows.
+- Models **left and right limbs** separately (the right side faces the camera) and a **toe joint** at the ball of the foot, ready for one-legged and heel-raise movements.
 - Adds **natural postural sway** matched to quiet-standing force-plate data, so nobody stands unnaturally still.
 - Checks the **dynamic centre of pressure** to confirm each rep would stay on its feet.
 - Compares simulated cohorts with **published squat and standing studies**. See [docs/validation.md](docs/validation.md), including where it falls short.
@@ -38,7 +39,7 @@ from exercise_quality.exercises.squat.protocols import ISHIDA_PARALLEL, sample_s
 rng = np.random.default_rng(0)
 body = BodyPopulation.load().sample(rng)
 rep = generate_feasible_squat(body, sample_style(rng, body, ISHIDA_PARALLEL))
-rep.landmarks["knee"]          # (T, 2) metres
+rep.landmarks["right_knee"]    # (T, 2) metres
 rep.measured()["trunk_inclination"]
 analyse_dynamics(rep).cop_fraction
 ```
@@ -74,4 +75,4 @@ docs/
 
 ## Limits
 
-Side view only, one lumbar joint, quasi-static planning, young and fit reference populations. No muscle forces, no medical or injury claims. See [docs/model.md](docs/model.md).
+Side view only, two spine joints, quasi-static planning, young and fit reference populations. No muscle forces, no medical or injury claims. See [docs/model.md](docs/model.md).

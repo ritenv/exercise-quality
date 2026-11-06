@@ -13,6 +13,7 @@ movement the two separate; see core/dynamics.py.
 """
 
 from dataclasses import dataclass
+from functools import lru_cache
 
 import numpy as np
 
@@ -30,6 +31,7 @@ class ModelSegment:
     gyration_fraction: float  # radius of gyration / origin-other distance
 
 
+@lru_cache(maxsize=256)
 def model_segments(body):
     """Every model segment with this body's masses (one per side for limbs).
 

@@ -305,11 +305,16 @@ def forward_kinematics(body, angles):
     lm[f"{st}_hip"] = hip
     lm[f"{sw}_hip"] = hip
 
-    lm[f"{sw}_knee"] = hip - body.thigh * up_vector(o[f"{sw}_thigh"])
-    ankle = lm[f"{sw}_knee"] - body.shank * up_vector(o[f"{sw}_shank"])
-    f, n = _forward(o[f"{sw}_rearfoot"]), up_vector(o[f"{sw}_rearfoot"])
-    heel = ankle - body.heel_offset * f - body.ankle_height * n
-    foot_from_ball(sw, heel + body.ball_length * f)
+    if angles.left_leg is angles.right_leg:
+        # symmetric pose (the common case): the other leg lies on top
+        for p in LEG_POINTS[:-1]:
+            lm[f"{sw}_{p}"] = lm[f"{st}_{p}"]
+    else:
+        lm[f"{sw}_knee"] = hip - body.thigh * up_vector(o[f"{sw}_thigh"])
+        ankle = lm[f"{sw}_knee"] - body.shank * up_vector(o[f"{sw}_shank"])
+        f, n = _forward(o[f"{sw}_rearfoot"]), up_vector(o[f"{sw}_rearfoot"])
+        heel = ankle - body.heel_offset * f - body.ankle_height * n
+        foot_from_ball(sw, heel + body.ball_length * f)
 
     lm["lumbar"] = hip + body.pelvis * up_vector(o["pelvis"])
     lm["thoracolumbar"] = lm["lumbar"] + body.abdomen * up_vector(o["abdomen"])
@@ -320,6 +325,10 @@ def forward_kinematics(body, angles):
     shoulder = neck - body.shoulder_drop * thorax_up
     for s in SIDES:
         lm[f"{s}_shoulder"] = shoulder
+        if s == "left" and angles.left_arm is angles.right_arm:
+            for p in ARM_POINTS[1:]:
+                lm[f"left_{p}"] = lm[f"right_{p}"]
+            continue
         lm[f"{s}_elbow"] = shoulder + body.upper_arm * down_vector(o[f"{s}_upper_arm"])
         lm[f"{s}_wrist"] = lm[f"{s}_elbow"] + body.forearm * down_vector(o[f"{s}_forearm"])
         lm[f"{s}_hand"] = lm[f"{s}_wrist"] + body.hand * down_vector(o[f"{s}_hand"])

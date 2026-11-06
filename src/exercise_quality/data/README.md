@@ -9,7 +9,7 @@ A subset of the ANSUR II public working databases (4082 men, 1986 women), with o
 - Licence: US government work, public domain.
 - Regenerate with `scripts/build_ansur_subset.py` (instructions are in that file).
 
-Columns: `subject_id`, `sex`, `age_years`, `stature_m`, `lateral_malleolus_height_m`, `tibiale_height_m`, `trochanterion_height_m`, `cervicale_height_m`, `acromion_height_m`, `acromion_radiale_length_m`, `radiale_stylion_length_m`, `hand_length_m`, `foot_length_m`, `mass_kg`.
+Columns: `subject_id`, `sex`, `age_years`, `stature_m`, `lateral_malleolus_height_m`, `tibiale_height_m`, `trochanterion_height_m`, `omphalion_height_m`, `cervicale_height_m`, `acromion_height_m`, `acromion_radiale_length_m`, `radiale_stylion_length_m`, `hand_length_m`, `ball_of_foot_length_m`, `foot_length_m`, `mass_kg`.
 
 Caveats:
 
