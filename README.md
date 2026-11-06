@@ -10,8 +10,9 @@ The current focus is making the generated movement true to life before any machi
 - Gives them **published mass distribution** (de Leva 1996) and computes the whole-body centre of mass.
 - Generates squats in **real seconds** with minimum-jerk motion. **Balance is solved every frame**, with the correction shared between ankle and trunk, so long thighs or stiff ankles change the squat without being programmed in.
 - Splits the trunk into **pelvis and thorax**, so the pelvis tips back and the lower back rounds once the hip runs out of range, as measured in real squats. People who can't reach the requested depth squat as deep as their body allows.
+- Adds **natural postural sway** matched to quiet-standing force-plate data, so nobody stands unnaturally still.
 - Checks the **dynamic centre of pressure** to confirm each rep would stay on its feet.
-- Compares simulated cohorts with **four published squat studies**. See [docs/validation.md](docs/validation.md), including where it falls short.
+- Compares simulated cohorts with **published squat and standing studies**. See [docs/validation.md](docs/validation.md), including where it falls short.
 
 ## Quick start
 
@@ -22,6 +23,7 @@ python -m pytest                                              # all tests
 PYTHONPATH=src python scripts/animate_balanced_squat.py 3     # one rep, seed 3
 PYTHONPATH=src python scripts/plot_squat_gallery.py           # 12 people at the bottom
 PYTHONPATH=src python scripts/plot_squat_curves.py            # angles, COM, COP over time
+PYTHONPATH=src python scripts/render_filmstrip.py 5 zawadka2020_max_depth out.png  # one rep as stills
 PYTHONPATH=src python scripts/validate_against_literature.py  # tables in docs/validation.md
 PYTHONPATH=src python scripts/calibrate_lumbopelvic.py        # refit hip end range (slow)
 ```
@@ -52,6 +54,7 @@ src/exercise_quality/
     balance.py         centre of mass, heel-to-toe support
     dynamics.py        dynamic centre of pressure
     timing.py          minimum-jerk rep timing
+    sway.py            postural sway noise
     geometry.py        shared 2D helpers
     (skeleton.py, kinematics.py, body.py, body_generator.py, biomechanics.py: first prototype)
   exercises/squat/
