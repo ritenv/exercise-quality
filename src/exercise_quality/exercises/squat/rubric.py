@@ -20,7 +20,9 @@ Graded criteria (BSA number, wording quoted from Table 1)
   reaches horizontal a few degrees later, so this reads slightly
   generous.
 * heels (7): "Entire foot remains in contact with the ground." Heel rise
-  relative to the toe point, as a fraction of foot length.
+  relative to the toe point, as a fraction of foot length, against a
+  straight baseline from the start to the end of the rep so slow drift
+  (camera roll) does not count.
 * trunk (3): "Trunk is parallel to tibia..." Trunk (hip-to-shoulder line)
   lean minus shin lean at the bottom. **Build adjustment**: whether a
   parallel trunk is physically possible depends on segment proportions,
@@ -36,9 +38,11 @@ Graded criteria (BSA number, wording quoted from Table 1)
   than 0 deg there, that amount is allowed: a long-thighed, short-trunked
   person is not marked down for geometry they cannot change.
 * ascent (10): "Shoulders and hips rise at the same, constant speed."
-  Hips rising first shows as the trunk leaning further forward after the
-  bottom; measured as the largest increase in trunk lean during the
-  ascent.
+  Hips rising first tips the trunk further forward early in the ascent
+  than it was at the same height on the way down. Measured as the largest
+  trunk lean difference, up minus down, at equal hip height in the lower
+  60% of the rep. A symmetric rep scores 0 even if the trunk leans most a
+  little above the bottom on both passes.
 * descent (8), the part that can be measured: "...controlled, constant
   speed throughout descent." Graded as an uninterrupted descent: the
   largest upward hip movement while going down, as a fraction of the
@@ -99,14 +103,15 @@ PARALLEL_THIGH = -90.0
 # measurement_tolerances(n=300) with seeds 0 and 1 (see module docstring).
 TOLERANCE = {
     "depth": 3.1,          # deg of thigh angle
-    "heels": 0.094,        # fraction of foot length (about 2.5 cm)
+    "heels": 0.088,        # fraction of foot length (about 2.3 cm)
     "trunk": 3.8,          # deg of trunk minus shin
-    "ascent": 2.6,         # deg of extra trunk lean
+    "ascent": 4.8,         # deg of trunk lean, up minus down
     "descent": 0.039,      # fraction of standing hip height
 }
 
 # Data checks
 MIN_YAW_SCALE = 0.9                              # cos(26 deg)
+MIN_VISIBILITY = 0.5                             # MediaPipe visibility of hip, knee, ankle
 STANDING_COM_RANGE = (0.31 - 0.15, 0.58 + 0.15)  # Fujiwara 2010 range +- tracker COM error p95
 MIN_REPS_FOR_RULE = 2
 
@@ -246,8 +251,8 @@ def grade_rep(features, track, rep, body):
     add("heels", features["heel_rise_max"], t["heels"], "heel rise, fraction of foot length")
     add("trunk", features["trunk_minus_shank_at_bottom"], allowance + t["trunk"],
         f"trunk lean minus shin lean at the bottom; build allowance {allowance:.1f} deg")
-    add("ascent", features["trunk_rise_after_bottom"], t["ascent"],
-        "extra trunk lean after the bottom (hips rising first)")
+    add("ascent", features["trunk_extra_on_ascent"], t["ascent"],
+        "trunk lean on the way up minus on the way down at the same hip height (hips rising first)")
     add("descent", descent_interruption(track, rep), t["descent"],
         "largest upward hip movement during the descent")
     return criteria, allowance
@@ -255,14 +260,23 @@ def grade_rep(features, track, rep, body):
 
 def assess(track, body=None, sex=None, population=None):
     """Grade every rep in an ObservedTrack (any units, person facing +x, y up)."""
+    warnings = []
+    if np.nanmedian(track["toe"][:, 0] - track["heel"][:, 0]) < 0:
+        track = track.map_points(lambda v: v * np.array([-1.0, 1.0]))
+        warnings.append("person faced -x; the track was mirrored")
     smooth = R.smoothed(track)
     angles = observed_angles(smooth)
     found = R.find_reps(smooth, angles)
-    warnings = []
     if body is None:
         body = match_body(smooth, angles, sex, population)
 
     reliable = True
+    if track.visibility:
+        legs = np.nanmedian([np.nanmedian(track.visibility[k]) for k in ("hip", "knee", "ankle")])
+        if legs < MIN_VISIBILITY:
+            reliable = False
+            warnings.append(f"near-side leg landmarks are poorly visible (median {legs:.2f}); "
+                            "the tracker is guessing")
     if track.yaw_scale < MIN_YAW_SCALE:
         reliable = False
         warnings.append(f"camera about {np.degrees(np.arccos(track.yaw_scale)):.0f} deg from side-on; "
@@ -345,6 +359,6 @@ def measurement_tolerances(n=300, seed=0, quantile=95.0):
         errors["depth"].append(fn["thigh_at_bottom"] - fc["thigh_at_bottom"])
         errors["heels"].append(fn["heel_rise_max"] - fc["heel_rise_max"])
         errors["trunk"].append(fn["trunk_minus_shank_at_bottom"] - fc["trunk_minus_shank_at_bottom"])
-        errors["ascent"].append(fn["trunk_rise_after_bottom"] - fc["trunk_rise_after_bottom"])
+        errors["ascent"].append(fn["trunk_extra_on_ascent"] - fc["trunk_extra_on_ascent"])
         errors["descent"].append(descent_interruption(noisy, reps_n[0]) - descent_interruption(clean, reps_c[0]))
     return {k: float(np.percentile(np.abs(v), quantile)) for k, v in errors.items()}

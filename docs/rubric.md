@@ -24,16 +24,17 @@ Five criteria can be measured from the side and are graded:
 | Criterion (BSA no.) | BSA wording | Measured as | Standard | Tolerance |
 |---|---|---|---|---|
 | depth (9) | "tops of thighs are at least parallel to the ground" | hip-to-knee line at the deepest knee bend | -90 deg (parallel) or deeper | 3.1 deg |
-| heels (7) | "Entire foot remains in contact with the ground" | heel rise relative to the toe point | 0 | 0.094 of foot length (about 2.5 cm) |
+| heels (7) | "Entire foot remains in contact with the ground" | heel rise relative to the toe point, against a straight baseline from the start to the end of the rep | 0 | 0.088 of foot length (about 2.3 cm) |
 | trunk (3) | "Trunk is parallel to tibia" | trunk lean minus shin lean at the bottom | 0, or the **build allowance** if larger | 3.8 deg |
-| ascent (10) | "Shoulders and hips rise at the same, constant speed" | extra trunk lean after the rise starts (hips leading) | 0 | 2.6 deg |
+| ascent (10) | "Shoulders and hips rise at the same, constant speed" | trunk lean on the way up minus on the way down, at the same hip height (lower 60% of the rep) | 0 | 4.8 deg |
 | descent (8) | "controlled, constant speed throughout descent" | largest upward hip movement while going down | 0 | 0.039 of standing hip height |
 
 Notes on the measures:
 
 - **Depth.** The thigh line is the joint-to-joint line. On a tapering thigh the top surface reaches horizontal a few degrees later, so this standard is slightly generous.
 - **Descent.** Only "uninterrupted" is graded. A smooth human movement speeds up and slows down, so "constant speed" isn't graded literally.
-- **Ascent.** It's measured from the start of the rise, so a pause at the bottom doesn't count.
+- **Ascent.** Hips leading tips the trunk further forward on the way up than it was at the same height on the way down. A symmetric rep scores 0, even when the trunk leans most a little above the bottom on both passes, which is common. An earlier version measured extra lean after the bottom, which flagged symmetric deep squats.
+- **Heels.** The straight baseline keeps slow heel-toe drift, such as the camera rolling as it pans, from counting as a lift.
 
 Not graded, with reasons (`rubric.NOT_GRADED`):
 
@@ -90,8 +91,8 @@ The noise model's knees-out projection isn't counted as error. When the knees tr
 | Fault | Caught |
 |---|---|
 | Too shallow (85 deg knee) | 100% |
-| Heels lift 25% / 10% of foot length | 100% / 88% |
-| Hips rise first, trunk +10 / +5 deg | 99% / 88% |
+| Heels lift 25% / 10% of foot length | 100% / 92% |
+| Hips rise first, trunk +10 / +5 deg | 100% / 54% |
 | Hitch on the way down, 8% / 4% of hip height | 100% / 75% |
 | Forward lean (strong trunk preference, little ankle) | 100% |
 
@@ -102,29 +103,30 @@ The fault-specific tests (`tests/test_rubric.py`) also check that each fault fai
 | | Ishida parallel: exact / tracked / agree | Zawadka max depth: exact / tracked / agree |
 |---|---|---|
 | depth | 0.40 / 0.56 / 0.82 | 0.56 / 0.60 / 0.95 |
-| heels | 1.00 / 0.95 / 0.95 | 1.00 / 0.94 / 0.94 |
+| heels | 1.00 / 0.96 / 0.96 | 1.00 / 0.96 / 0.96 |
 | trunk | 0.93 / 0.72 / 0.79 | 0.90 / 0.72 / 0.81 |
-| ascent | 0.96 / 0.90 / 0.92 | 0.71 / 0.67 / 0.90 |
+| ascent | 1.00 / 0.95 / 0.95 | 1.00 / 0.95 / 0.95 |
 | descent | 1.00 / 0.95 / 0.95 | 1.00 / 0.97 / 0.97 |
 
 - **Depth.** About half of people asked for "thighs parallel" don't reach a strict parallel. That matches Ishida's knee spread around a mean that sits right at parallel.
 - **Trunk, tracked view.** The knees-out projection fails more people (72% pass vs 93% exact).
 - **Agreement of 0.8-0.97 is the label noise** a model trained on tracked-view grades would face. Labels for training should be computed on the same tracked view the model sees.
-- **Ascent in Zawadka reps.** The generator makes 29% of them lean further forward while rising out of the 3 s hold. That comes from how the generator handles holds, not from data. Whether real people do it is unknown.
+- **False alarms run at about 5%** on heels, ascent and descent in the tracked view, as the 95th-percentile tolerances intend.
 
 **Real clips:**
 
 | Clip | Reliable | Score | Deficits |
 |---|---|---|---|
-| squat_1 (side-on) | yes | 60 | depth (thigh line 0.3-10 deg short of parallel in all 6 reps), trunk (12-20 deg ahead of the shin, 36 in the "sit back" rep, allowance 0) |
+| squat_1 (side-on) | yes | 53 | depth (thigh line 0.3-10 deg short of parallel in all 6 reps); trunk (12-20 deg ahead of the shin, 36 in the "sit back" rep, allowance 0); ascent (2 of 6 reps, by 0.1 and 1.9 deg over the tolerance) |
 | squat_2 (48 deg oblique) | **no**: camera angle, and an impossible standing balance (0.77) | 55 | not to be trusted |
 
-squat_1's trunk lean in reps 1-4 is within 4 deg of what balance needs at her own shin lean (28 deg, below the 36.8 deg cued value). By this rubric's logic her extra lean comes from shins that stay back, not from her weight sitting forward.
+squat_1's trunk lean in reps 1-4 is within 4 deg of what balance needs at her own shin lean (28 deg, below the 36.8 deg cued value). By this rubric's logic her extra lean comes from shins that stay back, not from her weight sitting forward. Her ascent deficit is marginal. If MediaPipe's temporal smoothing lags some landmarks more than others, it would produce the same up-down difference, and the noise model has no lag.
 
 ## Limits
 
 - The BSA is a proposed, unvalidated screen. Its standards (parallel depth, trunk parallel to the shin) suit a general back-squat pattern and aren't the only valid squat. A front squat, a deep squat for mobility or a box squat would need other standards.
 - Only side-view criteria. Knee valgus, hip shift and other frontal-plane faults are invisible here.
 - The build allowance rests on the balance model, de Leva mass fractions and Ishida's numbers from 16 young men. It's applied to everyone.
-- Tolerances come from a noise model calibrated on one side-on clip.
+- Tolerances come from a noise model calibrated on one side-on clip, without tracker lag.
+- Missing frames (MediaPipe dropouts) are interpolated; ten random dropouts per point plus a 0.5 s gap changed no grade on the side-on clip (`tests/test_rubric.py`). A person facing -x is mirrored with a warning, and poorly visible legs (MediaPipe visibility below 0.5) mark the result unreliable.
 - Not validated against expert raters. Comparing these grades with coaches scoring the same videos is the next real test.

@@ -107,7 +107,9 @@ Kasahara's instruction was "thighs parallel to the floor", the same as Ishida's 
 
 5. **Hip placement varies more in real people.** In the two real clips one person kept the hips forward and leant, and the other sent them far back (hip travel 0.16 and 0.37 of leg length against the model's 0.19-0.21). In the model, hip position follows from balance and the preferred lean, so its spread is narrow.
 
-6. **Rare extreme leans.** In 1500 reps the median peak trunk lean is 41 deg and the 99th percentile 62 deg, but a handful reach 65-77 deg. They come from several 2 SD draws together (early hip end range, weight far forward on the foot, little ankle use). They stay balanced and smooth, but a real person in that corner would more likely shift their weight back than lean that far.
+6. **The ascent mirrors the descent.** Both real clips lean 3-4 deg more on the way up than on the way down at the same hip height (93rd-96th percentile of matched synthetic reps), a slight hips-first rise. The generator's ascent is the time-reverse of its descent, with no ascent data behind it. Tracker lag could contribute; see [real_video_check.md](real_video_check.md).
+
+7. **Rare extreme leans.** In 1500 reps the median peak trunk lean is 41 deg and the 99th percentile 62 deg, but a handful reach 65-77 deg. They come from several 2 SD draws together (early hip end range, weight far forward on the foot, little ankle use). They stay balanced and smooth, but a real person in that corner would more likely shift their weight back than lean that far.
 
 ## What this does not validate
 

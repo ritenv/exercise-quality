@@ -44,7 +44,7 @@ Both are third-party videos. Only the MediaPipe landmark tracks are in the repos
 | Trunk lean at 60 / 90 deg knee | 20.8 / 31.8 | 25.1 / 31.0 | 18 / 60 |
 | Hip travel back (fraction of leg) | 0.16 | 0.21 | 14 |
 | Centre of mass over the foot at the bottom | 0.32 | 0.26 | 65 |
-| Extra trunk lean while rising | 0.0 | 0.2 | 20 |
+| Trunk lean up minus down at the same hip height | 4.1 | 1.3 | 96 (3 of 6 above 95) |
 | Descent / ascent (s) | 0.80 / 0.70 | 0.91 / 0.68 | 27 / 56 |
 
 ![squat_1](figures/real_check_squat_1.png)
@@ -92,7 +92,8 @@ All of it comes from one person in one clip; the spreads are assumptions.
 
    The cause is the preferred-trunk curve. It's fitted to Ishida's 60 deg, 90 deg and peak values at a 2 s tempo, and it bends over early. Two trainer demos at 0.8-1.2 s descents aren't a population, and MediaPipe's hip point could drift at depth (not measurable here). So **nothing was refitted**. What's needed is more side-on videos, ideally of untrained people at a controlled tempo, or a study reporting trunk lean through the whole descent.
 2. **Hip placement is a style, and styles vary more than the model allows.** squat_1 keeps the hips forward and leans; squat_2 sends them far back. The model's hip travel spread is narrow because hip position falls out of balance plus the preferred lean.
-3. Depth geometry, shin lean, tempo and bottom balance match on the side-on clip.
+3. **Real people rise slightly hips-first; the model doesn't.** At the same hip height, both real people lean more on the way up than on the way down (4.1 and 3.0 deg against 1.3 and 1.1 in their matched synthetic reps, 96th and 93rd percentiles). The generator's ascent is the time-reverse of its descent, an assumption with no ascent data behind it (model.md). Tracker lag that differs between landmarks would add the same signature, so this needs a reference measurement before changing the model.
+4. Depth geometry, shin lean, tempo and bottom balance match on the side-on clip.
 
 ## Limits of this check
 

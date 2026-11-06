@@ -42,7 +42,7 @@ COMPARED = [
     ("hip_back_at_bottom", "hip travel back, fraction of leg length"),
     ("knee_past_toe_at_bottom", "knee ahead of toe tip, fraction of foot"),
     ("com_at_bottom", "COM over the foot at the bottom (0 heel, 1 toe)"),
-    ("trunk_rise_after_bottom", "extra trunk lean after the bottom (deg)"),
+    ("trunk_extra_on_ascent", "trunk lean up minus down, same hip height (deg)"),
     ("heel_rise_max", "heel rise, fraction of foot length"),
     ("trunk_peak_ms", "trunk peak vs lowest hip (ms)"),
     ("descent_s", "descent (s)"),

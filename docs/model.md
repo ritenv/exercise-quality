@@ -80,7 +80,7 @@ This describes the balance-constrained squat generator (`exercises/squat/balance
 | Knee limit | 157 ± 6 deg | Data (Hemmerich abstract) |
 | Ankle cap | 45 deg | Assumption |
 | Tempo | 2 s down, 2 s up | Protocol (Ishida, Kasahara). The ±25% jitter on the Zawadka protocol is an assumption. |
-| Ascent mirrors descent | | Assumption, no ascent data used |
+| Ascent mirrors descent | | Assumption, no ascent data used. Two real videos rise slightly hips-first (3-4 deg more trunk lean on the way up at the same height); see real_video_check.md. |
 | Depth reduction when infeasible | 2 deg steps, down to 60 deg | Assumption about behaviour (people stop where they can) |
 | Tracker jitter, drift and knees-out size | see `core/tracker_noise.py` | Measured on one side-on clip. Spreads between videos are assumptions. |
 | Ear position for the tracker view | 55% of C7-to-vertex | Assumption (head position only) |

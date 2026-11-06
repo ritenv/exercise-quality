@@ -103,6 +103,52 @@ def _at_knee(knee, values, target):
     return float(values[i - 1] + frac * (values[i] - values[i - 1]))
 
 
+def heel_rise_curve(track, rep, window_s=0.2):
+    """Heel height above the toe point over the rep, against a straight baseline.
+
+    The baseline runs from the heel-toe height difference at the start of
+    the rep to that at the end (medians over ``window_s``), so a slow change
+    that has nothing to do with the heel, such as the camera rolling as it
+    pans, does not count as a lift. Units of the track, frames start..end.
+    """
+    diff = track["heel"][:, 1] - track["toe"][:, 1]
+    w = max(2, int(window_s * track.fps))
+    first = np.median(diff[rep.start:rep.start + w])
+    last = np.median(diff[max(rep.start, rep.end - w + 1):rep.end + 1])
+    frames = np.arange(rep.start, rep.end + 1)
+    baseline = first + (last - first) * (frames - rep.start) / max(rep.end - rep.start, 1)
+    return diff[rep.start:rep.end + 1] - baseline
+
+
+def trunk_extra_on_ascent(track, rep, trunk, lower=0.05, upper=0.6):
+    """How much more the trunk leans on the way up than on the way down, at the same hip height.
+
+    Hips rising before the shoulders tips the trunk further forward early in
+    the ascent than it was at that height on the way down. Comparing the two
+    passes at equal hip height (from 5% to 60% of the rep's excursion above
+    the bottom) ignores a trunk curve that is simply symmetric: many people
+    lean most a little above the bottom on both passes. Degrees, max over
+    the band; 0 for a mirror-image rep.
+    """
+    h = hip_height(track)
+    low = h[rep.lowest]
+    excursion = min(h[rep.start], h[rep.end]) - low
+    if excursion <= 0:
+        return 0.0
+    levels = low + excursion * np.linspace(lower, upper, 24)
+
+    def at_levels(sl, descending):
+        hh, tt = h[sl], trunk[sl]
+        if descending:
+            hh, tt = hh[::-1], tt[::-1]
+        hh = np.maximum.accumulate(hh)      # monotone for interpolation
+        return np.interp(levels, hh, tt)
+
+    down = at_levels(slice(rep.start, rep.lowest + 1), descending=True)
+    up = at_levels(slice(rep.lowest, rep.end + 1), descending=False)
+    return float(max(0.0, np.max(up - down)))
+
+
 def rep_features(track, rep, angles=None, leg_length=None):
     """Measurements of one rep, all from tracker-visible points.
 
@@ -122,16 +168,13 @@ def rep_features(track, rep, angles=None, leg_length=None):
     b = int(rep.start + np.argmax(knee_down))       # deepest knee bend on the way down
     hip_x = track["hip"][:, 0] - track["ankle"][:, 0]
     knee_x = track["knee"][:, 0] - track["toe"][:, 0]
-    heel_rise = (track["heel"][:, 1] - track["toe"][:, 1])
-    heel_rise = heel_rise - np.median(heel_rise[rep.start:rep.start + max(2, int(0.2 * fps))])
+    heel_rise = heel_rise_curve(track, rep)
 
     def peak_ms(name):
         values = angles[name][down]
         return 1000.0 * (int(np.argmax(values)) - (rep.lowest - rep.start)) / fps
 
     trunk = angles["trunk_inclination"]
-    # from the start of the rise, so a hold at the bottom does not count
-    ascent = slice(rep.ascent_start, rep.end + 1)
     return {
         "knee_peak": float(angles["knee_flexion"][b]),
         "thigh_at_bottom": float(angles["thigh_inclination"][b]),
@@ -147,10 +190,10 @@ def rep_features(track, rep, angles=None, leg_length=None):
         "ankle_at_knee60": _at_knee(knee_down, angles["ankle_dorsiflexion"][down], 60.0),
         "ankle_at_knee90": _at_knee(knee_down, angles["ankle_dorsiflexion"][down], 90.0),
         # trunk lean gained after the lowest point: hips rising before the chest
-        "trunk_rise_after_bottom": float(trunk[ascent].max() - trunk[rep.ascent_start]),
+        "trunk_extra_on_ascent": trunk_extra_on_ascent(track, rep, trunk),
         "hip_back_at_bottom": float((hip_x[rep.start] - hip_x[b]) / leg_length),
         "knee_past_toe_at_bottom": float(knee_x[b] / foot_length),
-        "heel_rise_max": float(heel_rise[whole].max() / foot_length),
+        "heel_rise_max": float(heel_rise.max() / foot_length),
         "descent_s": (rep.bottom_reached - rep.start) / fps,
         "bottom_s": (rep.ascent_start - rep.bottom_reached) / fps,
         "ascent_s": (rep.end - rep.ascent_start) / fps,

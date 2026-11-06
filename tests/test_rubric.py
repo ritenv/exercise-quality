@@ -105,9 +105,48 @@ def test_real_clips():
     side_on = rubric.assess(mpp.observed_track("squat_1"), sex="female")
     assert side_on.reliable and len(side_on.reps) == 6
     assert side_on.deficits["depth"] and side_on.deficits["trunk"]
-    assert not side_on.deficits["heels"] and not side_on.deficits["ascent"]
+    assert not side_on.deficits["heels"] and not side_on.deficits["descent"]
     # her lean is about what balance needs at her own shin angle (reps 1-4)
     for rep in side_on.reps[:4]:
         assert abs(rep.criteria["trunk"].value - rep.trunk_needed_at_own_shin) < 5.0
     oblique = rubric.assess(mpp.observed_track("squat_2"), sex="male")
     assert not oblique.reliable and len(oblique.warnings) == 2
+
+
+def test_symmetric_reps_do_not_count_as_hips_first(body):
+    # deep squats lean most a little above the bottom on both passes
+    for knee in (110.0, 150.0):
+        assert criteria(make_track(body, peak_knee_flexion=knee), body)["ascent"]
+    hold = make_track(body, timing=RepTiming(stand_before=0.6, descent=2.0, bottom_hold=3.0, ascent=2.0,
+                                             stand_after=0.6))
+    assert criteria(hold, body)["ascent"]
+
+
+def test_a_person_facing_the_other_way_is_mirrored(body):
+    track = make_track(body)
+    flipped = track.map_points(lambda v: v * np.array([-1.0, 1.0]))
+    result = rubric.assess(flipped, body=body)
+    assert any("mirrored" in w for w in result.warnings)
+    assert result.score == pytest.approx(rubric.assess(track, body=body).score)
+
+
+def test_slow_heel_toe_drift_is_not_a_heel_lift(body):
+    track = make_track(body)
+    foot = np.median(np.linalg.norm(track["toe"] - track["heel"], axis=-1))
+    ramp = np.linspace(0.0, 0.15 * foot, len(track))[:, None] * np.array([0.0, 1.0])
+    drifting = replace(track, points={**track.points, "heel": track["heel"] + ramp})
+    assert criteria(drifting, body)["heels"]
+
+
+def test_missing_frames_do_not_change_the_grades():
+    track = mpp.observed_track("squat_1")
+    rng = np.random.default_rng(0)
+    points = {k: v.copy() for k, v in track.points.items()}
+    for k in points:
+        points[k][rng.choice(len(track), 10, replace=False)] = np.nan
+    a = rubric.assess(track, sex="female")
+    b = rubric.assess(replace(track, points=points), sex="female")
+    assert a.deficits == b.deficits
+    for ra, rb in zip(a.reps, b.reps):
+        for name in ra.criteria:
+            assert rb.criteria[name].value == pytest.approx(ra.criteria[name].value, abs=0.5)
