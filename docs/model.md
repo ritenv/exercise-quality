@@ -13,6 +13,7 @@ This describes the balance-constrained squat generator (`exercises/squat/balance
 7. **Feasibility.** If someone can't reach the requested depth without falling backwards or rounding their back past its limit, they squat as deep as they can (`generate_feasible_squat`), as a real person would. The rep is noted `depth_limited_by_mobility`.
 8. **Sway.** A slow random wobble of the balance target (shaped like quiet-standing centre-of-pressure data and passed through the inverted-pendulum relation to the centre of mass) keeps people from standing unnaturally still. The solver turns it into small ankle and trunk motion.
 9. **Check.** The true centre of pressure, including accelerations and segment rotation, is computed (`core/dynamics.py`) to confirm the person would actually stay on their feet.
+10. **Tracker view (optional).** For comparison with real video and for grading, a rep can be reduced to the points MediaPipe Pose reports (`core/observed.py`) and passed through a noise model measured on real video (`core/tracker_noise.py`): jitter, slow landmark drift, and the knees-out projection. See [real_video_check.md](real_video_check.md) and [rubric.md](rubric.md).
 
 ## Sources
 
@@ -30,6 +31,11 @@ This describes the balance-constrained squat generator (`exercises/squat/balance
 | Quiet-standing sway: centre-of-pressure mean velocity and median frequency | Yamamoto et al. 2015, Physiol Rep 3(3):e12329 | Full text via Europe PMC. |
 | Peak vertical ground force similar across squat depths; sharper bottom transition when fast | Hamed et al. 2025, ISBS Proceedings 43(1) art. 29 | Abstract only (qualitative check). |
 | Maximum knee flexion in squatting | Hemmerich et al. 2006, J Orthop Res 24:770-781 | **Abstract only.** |
+| Real-video pose tracks | MediaPipe Pose Landmarker heavy (MediaPipe 1.2.2) | Run on the videos listed in `data/real_video/manifest.json` |
+| Low-pass filtering of tracked kinematics at 6 Hz | Winter 2009, *Biomechanics and Motor Control of Human Movement*, 4th ed. | Standard practice for whole-body movement |
+| Side-view squat technique criteria and the 2-rep deficit rule | Myer et al. 2014, *Strength Cond J* 36(6):4-27 (Back Squat Assessment) | Full text via PMC (PMC4262933) |
+| Restricting forward knee travel moves torque to the hip | Fry, Smith and Schilling 2003, *J Strength Cond Res* 17(4):629-633 | Abstract |
+| Shin lean people reach at parallel when cued forward (36.8 ± 3.9 deg) | Ishida et al. 2025 | Full text, anterior-COP condition |
 | Heel position behind the ankle (21% of foot length) | 2024 Scientific Reports paper on shoe heel height, citing radiographic data | **Secondary only**, not checked against the original radiographs. |
 
 ## Assumptions and their status
@@ -76,12 +82,16 @@ This describes the balance-constrained squat generator (`exercises/squat/balance
 | Tempo | 2 s down, 2 s up | Protocol (Ishida, Kasahara). The ±25% jitter on the Zawadka protocol is an assumption. |
 | Ascent mirrors descent | | Assumption, no ascent data used |
 | Depth reduction when infeasible | 2 deg steps, down to 60 deg | Assumption about behaviour (people stop where they can) |
+| Tracker jitter, drift and knees-out size | see `core/tracker_noise.py` | Measured on one side-on clip. Spreads between videos are assumptions. |
+| Ear position for the tracker view | 55% of C7-to-vertex | Assumption (head position only) |
+| Rubric tolerances | 95th percentile of tracker error | Derived from the noise model (`rubric.measurement_tolerances`) |
+| Build allowance in the trunk criterion | balance at 36.8 deg shin, COM at 36.3% of foot | Model-derived from Ishida's cued shin lean and natural COP |
 
 ## Known limitations
 
 - **Preferences come from outcome data.** Each person's preferred ankle and trunk patterns use the published *outcome* means and spreads. Balance then adds a correction on top, so simulated ankle and trunk means come out a few degrees above the published ones (see validation.md). Re-centring the preferences would remove this, but only by fitting those means away.
 - **Two spine joints.** The real back bends over many vertebrae. The model bends at the navel and the xiphoid, de Leva's mass boundaries, and nothing below the navel (L4-S1 sits inside the "pelvis"). Lumbar flexion as studies measure it (rib cage relative to pelvis) is unaffected by where the joints are, because the rib-cage lean comes from balance and the pelvis from the hip end range; see validation.md, gap 1.
-- **Trunk lean past parallel.** The preferred trunk lean is held at Ishida's value for squats deeper than Ishida's (121.8 deg knee). No study used here reports how lean grows past parallel, so deep squats lean no further than parallel ones except through balance.
+- **Trunk lean past parallel.** The preferred trunk lean is held at Ishida's value for squats deeper than Ishida's (121.8 deg knee). No study used here reports how lean grows past parallel, so deep squats lean no further than parallel ones except through balance. Two real videos also lean more at the bottom than matched synthetic people, with a lean that keeps rising to the bottom (real_video_check.md).
 - **Side view only.** No knee valgus, stance width, foot turn-out or left-right asymmetry.
 - **Quasi-static balance.** Each frame is balanced as if still. Dynamics are checked afterwards, not used to plan the motion. This is fine at normal tempos (centre of pressure within about 7 mm of the plan at 2 s per phase) but not for fast or bouncy reps.
 - **Populations.** ANSUR II is US Army personnel. de Leva is young Russian PE students. The squat studies are young, healthy, mostly Japanese, Polish and US adults. Older, heavier, injured or very mobile people are not represented.
