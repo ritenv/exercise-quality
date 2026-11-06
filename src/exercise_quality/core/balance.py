@@ -3,7 +3,7 @@
 Segment masses and centre-of-mass positions come from de Leva (1996),
 see core/deleva.py. Each segment's centre of mass lies on the line
 between its two joint-centre landmarks, at de Leva's fraction from the
-origin landmark. Bilateral segments (arms, legs, feet) count twice.
+origin landmark. Left and right limbs are separate segments.
 
 Static balance: if the body is still, the ground reaction force acts
 straight up through the centre of mass, so the centre of pressure (COP)
@@ -16,25 +16,52 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from exercise_quality.core import deleva
-from exercise_quality.core.sagittal_model import SEGMENT_ENDPOINTS
+from exercise_quality.core.sagittal_model import SEGMENTS
+
+
+@dataclass(frozen=True)
+class ModelSegment:
+    """Inertia of one model segment for a particular body."""
+
+    mass: float               # kg
+    origin: str               # landmark
+    other: str                # landmark
+    com_fraction: float       # along origin -> other
+    gyration_fraction: float  # radius of gyration / origin-other distance
+
+
+def model_segments(body):
+    """Every model segment with this body's masses (one per side for limbs).
+
+    The foot is de Leva's single heel-to-toe-tip segment. In the model it
+    is split at the ball of the foot, and all its mass is carried on the
+    rearfoot (heel to ball): the toes are a small fraction of foot mass
+    and de Leva gives no split. The centre of mass keeps de Leva's
+    distance from the heel, so it is re-expressed as a fraction of the
+    heel-to-ball length; likewise the radius of gyration.
+    """
+    out = {}
+    for name, (deleva_name, origin, other) in SEGMENTS.items():
+        p = body.segments[deleva_name]
+        com, gyration = p.com_fraction, p.sagittal_gyration_fraction
+        if deleva_name == "foot":
+            scale = body.foot_length / body.ball_length
+            com, gyration = com * scale, gyration * scale
+        out[name] = ModelSegment(body.mass * p.mass_fraction, origin, other, com, gyration)
+    return out
 
 
 def segment_masses(body):
-    """Mass in kg of each modelled segment, both sides combined."""
-    return {
-        name: body.mass * p.mass_fraction * (2 if name in deleva.BILATERAL else 1)
-        for name, p in body.segments.items()
-    }
+    """Mass in kg of each model segment."""
+    return {name: s.mass for name, s in model_segments(body).items()}
 
 
 def segment_centres(body, landmarks):
     """Centre of mass position of each segment, shape (..., 2)."""
     centres = {}
-    for name, p in body.segments.items():
-        origin, other = SEGMENT_ENDPOINTS[name]
-        start = landmarks[origin]
-        centres[name] = start + p.com_fraction * (landmarks[other] - start)
+    for name, s in model_segments(body).items():
+        start = landmarks[s.origin]
+        centres[name] = start + s.com_fraction * (landmarks[s.other] - start)
     return centres
 
 

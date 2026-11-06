@@ -56,13 +56,16 @@ def test_table2_offsets_reproduce_table4_upper_arm(sex):
     assert derived == pytest.approx(table4, abs=0.0005)
 
 
+TRUNK_PARTS = ("thorax", "abdomen", "pelvis")  # top to bottom
+
+
 @pytest.mark.parametrize("sex", deleva.SEXES)
 def test_trunk_split_conserves_mass(sex):
     split = deleva.split_trunk_parameters(sex)
     whole = deleva.whole_trunk_parameters(sex)
-    total = split["pelvis"].mass_fraction + split["thorax"].mass_fraction
+    total = sum(split[n].mass_fraction for n in TRUNK_PARTS)
     assert total == pytest.approx(whole.mass_fraction, abs=1e-9)
-    total_len = split["pelvis"].reference_length_m + split["thorax"].reference_length_m
+    total_len = sum(split[n].reference_length_m for n in TRUNK_PARTS)
     assert total_len == pytest.approx(whole.reference_length_m)
 
 
@@ -74,22 +77,23 @@ def test_trunk_split_reproduces_whole_trunk_centre_of_mass(sex):
     of the transcription and of the stacking assumption."""
     split = deleva.split_trunk_parameters(sex)
     whole = deleva.whole_trunk_parameters(sex)
-    p, t = split["pelvis"], split["thorax"]
-    # positions below CERV, metres
-    thorax_com = t.com_fraction * t.reference_length_m
-    # de Leva measures the pelvis centre from its origin, the navel (OMPH)
-    pelvis_com = t.reference_length_m + p.com_fraction * p.reference_length_m
-    combined = ((t.mass_fraction * thorax_com + p.mass_fraction * pelvis_com)
-                / (t.mass_fraction + p.mass_fraction))
+    top, moment, mass = 0.0, 0.0, 0.0
+    for name in TRUNK_PARTS:  # each measured from its upper end
+        part = split[name]
+        moment += part.mass_fraction * (top + part.com_fraction * part.reference_length_m)
+        mass += part.mass_fraction
+        top += part.reference_length_m
     expected = whole.com_fraction * whole.reference_length_m
-    assert combined == pytest.approx(expected, abs=0.004)  # within 4 mm
+    assert moment / mass == pytest.approx(expected, abs=0.004)  # within 4 mm
 
 
 @pytest.mark.parametrize("sex", deleva.SEXES)
-def test_thorax_parameters_are_physical(sex):
-    t = deleva.split_trunk_parameters(sex)["thorax"]
-    assert 0.3 < t.com_fraction < 0.6
-    assert 0.2 < t.sagittal_gyration_fraction < 0.5
+def test_trunk_parts_are_physical(sex):
+    for name in TRUNK_PARTS:
+        t = deleva.split_trunk_parameters(sex)[name]
+        assert 0.3 < t.com_fraction < 0.7
+        assert 0.2 < t.sagittal_gyration_fraction < 0.7
+    assert 0.45 < deleva.xiphoid_fraction(sex) < 0.5
 
 
 def test_unknown_sex_rejected():
@@ -111,6 +115,7 @@ def test_every_body_is_valid_and_closes_to_stature(population, sex):
         assert stacked == pytest.approx(body.stature, abs=1e-9)
         assert body.shoulder_drop < body.trunk
         assert body.heel_offset < body.toe_offset
+        assert body.heel_offset < body.ball_length < body.foot_length
 
 
 @pytest.mark.parametrize("sex", deleva.SEXES)
@@ -138,16 +143,25 @@ def test_proportions_are_plausible(population, sex):
         assert 0.025 < body.ankle_height / h < 0.06
         assert 0.40 < body.standing_hip_height / h < 0.60
         assert 0.12 < body.foot_length / h < 0.19
+        # ANSUR II heel-to-ball length is about 74% of foot length
+        assert 0.66 < body.ball_length / body.foot_length < 0.82
         assert 0.10 < body.upper_arm / h < 0.22
 
 
 @pytest.mark.parametrize("sex", deleva.SEXES)
-def test_pelvis_and_thorax_lengths(population, sex):
+def test_trunk_part_lengths(population, sex):
     bodies = population.bodies(sex)
     for b in bodies:
-        assert b.trunk == pytest.approx(b.pelvis + b.thorax)
+        assert b.trunk == pytest.approx(b.pelvis + b.abdomen + b.thorax)
         assert 0.03 < b.pelvis < 0.30
         assert b.shoulder_drop < b.thorax
+    # the rib cage and abdomen come from de Leva's proportions, so their
+    # scaled means should agree closely
+    stature = np.mean([b.stature for b in bodies])
+    scale = stature / deleva.REFERENCE_SUBJECT[sex]["stature_m"]
+    for name in ("abdomen", "thorax"):
+        expected = deleva.split_trunk_parameters(sex)[name].reference_length_m * scale
+        assert abs(np.mean([getattr(b, name) for b in bodies]) / expected - 1) < 0.06, name
     # male navel split agrees with de Leva's lower trunk once scaled; the
     # female one is shorter than de Leva's 15-woman sample suggests
     stature = np.mean([b.stature for b in bodies])

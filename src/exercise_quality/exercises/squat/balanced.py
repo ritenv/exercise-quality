@@ -237,7 +237,11 @@ def pelvis_for_thorax(thorax, thigh, style):
 
 
 def _angles_for_trunk(ankle, knee, trunk, style):
-    """Joint angles for given ankle, knee and absolute thorax inclination."""
+    """Joint angles for given ankle, knee and absolute thorax inclination.
+
+    Both sides move together. The lumbar flexion between pelvis and thorax
+    is shared between the two spine joints (sagittal_model.UPPER_LUMBAR_SHARE).
+    """
     thigh = ankle - knee
     pelvis = pelvis_for_thorax(trunk, thigh, style)
     shape = np.shape(pelvis)
@@ -245,7 +249,7 @@ def _angles_for_trunk(ankle, knee, trunk, style):
         shoulder = style.arms.upper_arm_angle + trunk
     else:
         shoulder = np.broadcast_to(style.arms.upper_arm_angle, shape)
-    return JointAngles(
+    return JointAngles.symmetric(
         ankle_dorsiflexion=ankle,
         knee_flexion=knee,
         hip_flexion=pelvis - thigh,

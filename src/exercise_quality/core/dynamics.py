@@ -26,8 +26,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from exercise_quality.core.balance import segment_centres, segment_masses
-from exercise_quality.core.sagittal_model import SEGMENT_ENDPOINTS
+from exercise_quality.core.balance import model_segments, segment_centres
 
 GRAVITY = 9.81
 
@@ -74,19 +73,19 @@ class DynamicBalance:
 def analyse_dynamics(sequence):
     """Dynamic centre of pressure for a generated SquatSequence."""
     body = sequence.body
-    names = list(body.segments)
-    m = segment_masses(body)
-    masses = np.array([m[n] for n in names])
+    segments = model_segments(body)
+    names = list(segments)
+    masses = np.array([segments[n].mass for n in names])
     centres_dict = segment_centres(body, sequence.landmarks)
     centres = np.stack([centres_dict[n] for n in names], axis=1)
 
     orientations, inertias = [], []
-    for n, mass in zip(names, masses):
-        a, b = SEGMENT_ENDPOINTS[n]
-        v = sequence.landmarks[b] - sequence.landmarks[a]
+    for n in names:
+        s = segments[n]
+        v = sequence.landmarks[s.other] - sequence.landmarks[s.origin]
         orientations.append(np.arctan2(v[:, 1], v[:, 0]))
         length = np.linalg.norm(v[0])
-        inertias.append(mass * (body.segments[n].sagittal_gyration_fraction * length) ** 2)
+        inertias.append(s.mass * (s.gyration_fraction * length) ** 2)
     orientations = np.stack(orientations, axis=1)
 
     dt = sequence.times[1] - sequence.times[0]

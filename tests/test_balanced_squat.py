@@ -109,7 +109,7 @@ def test_arms_forward_act_as_counterweight(body):
     forward = generate_squat(body, SquatStyle(arms=ARMS_FORWARD))
     assert peak_trunk(forward) < peak_trunk(hanging)
     # world-fixed arms stay parallel to the floor while the trunk moves
-    arm = forward.landmarks["elbow"] - forward.landmarks["shoulder"]
+    arm = forward.landmarks["right_elbow"] - forward.landmarks["right_shoulder"]
     np.testing.assert_allclose(arm[:, 1], 0.0, atol=1e-9)
 
 

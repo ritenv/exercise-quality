@@ -24,6 +24,12 @@ Assumptions (also listed in docs/model.md)
   in front), so the trunk and head lengths here are their vertical
   extents in upright standing, not true 3D segment lengths.
 * The ankle joint centre is placed at the lateral malleolus height.
+* The xiphoid (where the rib cage meets the abdomen) is not measured in
+  ANSUR II. It is placed at de Leva's sample proportion of each person's
+  navel-to-C7 distance (47%).
+* The ball of the foot (the toe joint) is at ANSUR II's measured
+  heel-to-ball length. That is measured to the first metatarsal head on
+  the inside of the foot; the side view uses it as the toe joint axis.
 * The heel extends 21% of foot length behind the ankle. This ratio is
   taken from the running model of a 2024 Scientific Reports paper on
   heel height ("Effects of shoe heel height on ankle dynamics in
@@ -44,8 +50,8 @@ DATA_FILE = Path(__file__).resolve().parent.parent / "data" / "ansur_ii_sagittal
 HEEL_FRACTION_OF_FOOT = 0.21
 
 LENGTH_FIELDS = (
-    "ankle_height", "heel_offset", "foot_length", "shank", "thigh",
-    "pelvis", "thorax", "head", "shoulder_drop", "upper_arm", "forearm", "hand",
+    "ankle_height", "heel_offset", "ball_length", "foot_length", "shank", "thigh",
+    "pelvis", "abdomen", "thorax", "head", "shoulder_drop", "upper_arm", "forearm", "hand",
 )
 
 
@@ -55,10 +61,13 @@ class SagittalBody:
 
     pelvis: hip joint centres up to the navel (omphalion) level, de Leva's
     lower trunk.
-    thorax: navel level up to C7, de Leva's middle plus upper trunk.
+    abdomen: navel up to the xiphoid, de Leva's middle trunk.
+    thorax: xiphoid up to C7 (the rib cage), de Leva's upper trunk.
     shoulder_drop: distance from C7 down the thorax line to the shoulder
     joint centre.
     heel_offset: horizontal distance the heel extends behind the ankle.
+    ball_length: heel to the ball of the foot (the toe joint), along the
+    sole.
     """
 
     sex: str
@@ -66,10 +75,12 @@ class SagittalBody:
     mass: float
     ankle_height: float
     heel_offset: float
+    ball_length: float
     foot_length: float
     shank: float
     thigh: float
     pelvis: float
+    abdomen: float
     thorax: float
     head: float
     shoulder_drop: float
@@ -86,8 +97,8 @@ class SagittalBody:
                 raise ValueError(f"{name} must be positive and finite, got {value}")
         if self.shoulder_drop >= self.thorax:
             raise ValueError("shoulder joint must lie on the thorax, below C7")
-        if self.heel_offset >= self.foot_length:
-            raise ValueError("heel offset must be shorter than the foot")
+        if not self.heel_offset < self.ball_length < self.foot_length:
+            raise ValueError("the ball of the foot must lie between the ankle and the toe tip")
 
     @property
     def toe_offset(self):
@@ -95,9 +106,19 @@ class SagittalBody:
         return self.foot_length - self.heel_offset
 
     @property
+    def ball_offset(self):
+        """Horizontal distance from the ankle forward to the ball of the foot."""
+        return self.ball_length - self.heel_offset
+
+    @property
+    def toe_length(self):
+        """Ball of the foot to the toe tip."""
+        return self.foot_length - self.ball_length
+
+    @property
     def trunk(self):
-        """Hip joint centres to C7 (pelvis plus thorax)."""
-        return self.pelvis + self.thorax
+        """Hip joint centres to C7 (pelvis, abdomen and thorax)."""
+        return self.pelvis + self.abdomen + self.thorax
 
     @property
     def segments(self):
@@ -117,7 +138,7 @@ def body_from_measurements(m, sex, subject_id=""):
     ``m`` needs: stature_m, lateral_malleolus_height_m, tibiale_height_m,
     trochanterion_height_m, omphalion_height_m, cervicale_height_m, acromion_height_m,
     acromion_radiale_length_m, radiale_stylion_length_m, hand_length_m,
-    foot_length_m, mass_kg.
+    ball_of_foot_length_m, foot_length_m, mass_kg.
     """
     off = deleva.JOINT_CENTRE_OFFSETS_M[sex]
 
@@ -128,6 +149,7 @@ def body_from_measurements(m, sex, subject_id=""):
     # its standing height directly
     navel = m["omphalion_height_m"]
     cervicale = m["cervicale_height_m"]
+    xiphoid = navel + deleva.xiphoid_fraction(sex) * (cervicale - navel)
     shoulder = m["acromion_height_m"] + off["shoulder_from_acromion"]
 
     # Acromion-radiale is measured with the arm hanging. The shoulder
@@ -154,11 +176,13 @@ def body_from_measurements(m, sex, subject_id=""):
         mass=m["mass_kg"],
         ankle_height=ankle,
         heel_offset=HEEL_FRACTION_OF_FOOT * foot,
+        ball_length=m["ball_of_foot_length_m"],
         foot_length=foot,
         shank=knee - ankle,
         thigh=hip - knee,
         pelvis=navel - hip,
-        thorax=cervicale - navel,
+        abdomen=xiphoid - navel,
+        thorax=cervicale - xiphoid,
         head=m["stature_m"] - cervicale,
         shoulder_drop=cervicale - shoulder,
         upper_arm=upper_arm,

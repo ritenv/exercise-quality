@@ -65,7 +65,7 @@ def _segments(rows):
 # endpoint" rows) so the head and trunk chain end to end at C7, and shank
 # KJC-LMAL so the ankle point matches the lateral malleolus height
 # measured in ANSUR II. The whole trunk row is kept for reference; the
-# body model uses it split into pelvis and thorax (see SEGMENT_TABLE).
+# body model uses it split into thorax, abdomen and pelvis (see SEGMENT_TABLE).
 TABLE4 = {
     "female": _segments([
         ("head", "VERT", "CERV", 243.7, 6.68, 48.41, 27.1),
@@ -89,9 +89,8 @@ TABLE4 = {
     ]),
 }
 
-# Segments that exist on both sides of the body. In a side view the left
-# and right segments overlap, so they are modelled as one segment with
-# twice the mass.
+# Segments that exist on both sides of the body. The body model has a
+# left and a right copy of each.
 BILATERAL = frozenset({"upper_arm", "forearm", "hand", "thigh", "shank", "foot"})
 
 REFERENCE_SUBJECT = {
@@ -130,8 +129,8 @@ HAND_MET3_TO_DAC3_RATIO = {
 }
 
 
-# Table 4 trunk sub-segments, used to split the trunk into a pelvis and a
-# thorax. (name, origin, other, length mm, mass %, CM % from origin,
+# Table 4 trunk sub-segments, used to split the trunk into a pelvis, an
+# abdomen and a thorax. (origin, other, length mm, mass %, CM % from origin,
 # sagittal r %). The CERV-XYPH length is not tabulated; it is derived
 # below as the whole trunk (CERV-MIDH) minus the middle and lower trunk,
 # i.e. the three are treated as stacked vertically, matching how the
@@ -150,45 +149,41 @@ TRUNK_SUBSEGMENTS = {
 }
 
 
-def split_trunk_parameters(sex):
-    """Pelvis (OMPH-MIDH) and thorax (CERV-OMPH) parameters from de Leva.
-
-    The pelvis is de Leva's lower trunk as tabulated. The thorax combines
-    the upper trunk (CERV-XYPH) and middle trunk (XYPH-OMPH): their masses
-    add, the combined centre of mass is their mass-weighted mean along the
-    CERV-OMPH line, and the radius of gyration follows from the parallel
-    axis theorem.
-
-    Returns {"pelvis": SegmentParameters, "thorax": SegmentParameters}.
-    Reference lengths are de Leva's sample means.
-    """
+def _trunk_lengths_mm(sex):
     sub = TRUNK_SUBSEGMENTS[sex]
     whole = TABLE4[sex]["trunk"].reference_length_m * 1000.0
-    _, _, middle_len, middle_mass, middle_cm, middle_r = sub["middle"]
-    _, _, lower_len, lower_mass, lower_cm, lower_r = sub["lower"]
-    _, _, _, upper_mass, upper_cm, upper_r = sub["upper"]
-    upper_len = whole - middle_len - lower_len
-    thorax_len = upper_len + middle_len
+    middle, lower = sub["middle"][2], sub["lower"][2]
+    return whole - middle - lower, middle, lower
 
-    # positions below CERV, in mm
-    upper_com = upper_cm / 100.0 * upper_len
-    middle_com = upper_len + middle_cm / 100.0 * middle_len
-    mass = upper_mass + middle_mass
-    com = (upper_mass * upper_com + middle_mass * middle_com) / mass
-    inertia = (
-        upper_mass * ((upper_r / 100.0 * upper_len) ** 2 + (upper_com - com) ** 2)
-        + middle_mass * ((middle_r / 100.0 * middle_len) ** 2 + (middle_com - com) ** 2)
-    )
-    gyration = (inertia / mass) ** 0.5 / thorax_len
 
-    return {
-        "pelvis": SegmentParameters(
-            "pelvis", "OMPH", "MIDH", lower_mass / 100.0, lower_cm / 100.0,
-            lower_r / 100.0, lower_len / 1000.0),
-        "thorax": SegmentParameters(
-            "thorax", "CERV", "OMPH", mass / 100.0, com / thorax_len,
-            gyration, thorax_len / 1000.0),
-    }
+def split_trunk_parameters(sex):
+    """de Leva's three trunk sub-segments as model segments.
+
+    thorax: upper trunk, C7 to the xiphoid (the rib cage).
+    abdomen: middle trunk, xiphoid to the navel (omphalion).
+    pelvis: lower trunk, navel to the hip joint centres.
+
+    Returns {"thorax", "abdomen", "pelvis"} -> SegmentParameters, with de
+    Leva's sample mean lengths as reference lengths.
+    """
+    sub = TRUNK_SUBSEGMENTS[sex]
+    lengths = dict(zip(("upper", "middle", "lower"), _trunk_lengths_mm(sex)))
+    names = {"upper": "thorax", "middle": "abdomen", "lower": "pelvis"}
+    out = {}
+    for key, name in names.items():
+        _, _, _, mass, cm, r = sub[key]
+        origin, other = sub[key][0], sub[key][1]
+        out[name] = SegmentParameters(name, origin, other, mass / 100.0, cm / 100.0,
+                                      r / 100.0, lengths[key] / 1000.0)
+    return out
+
+
+def xiphoid_fraction(sex):
+    """Height of the xiphoid between the navel (0) and C7 (1) in de Leva's
+    sample. ANSUR II has no xiphoid height, so each person's is placed at
+    this fraction of their own navel-to-C7 distance."""
+    upper, middle, _ = _trunk_lengths_mm(sex)
+    return middle / (upper + middle)
 
 
 def _model_segments(sex):
@@ -197,8 +192,8 @@ def _model_segments(sex):
     return table
 
 
-# The segments the body model uses: Table 4 with the trunk split at the
-# navel into pelvis and thorax.
+# The segments the body model uses: Table 4 with the trunk split into
+# de Leva's three sub-segments (thorax, abdomen, pelvis).
 SEGMENT_TABLE = {sex: _model_segments(sex) for sex in SEXES}
 
 

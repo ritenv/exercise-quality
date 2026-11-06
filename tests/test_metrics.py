@@ -33,7 +33,7 @@ def test_extensor_bias(value, expected):
 
 def test_trunk_tibia_angle_on_a_known_pose(body):
     # shank 30 deg, knee 100 -> thigh -70, hip 100 -> pelvis 30, lumbar 10 -> thorax 40
-    lm = forward_kinematics(body, JointAngles(30, 100, 100, lumbar_flexion=10))
+    lm = forward_kinematics(body, JointAngles.symmetric(ankle_dorsiflexion=30, knee_flexion=100, hip_flexion=100, lumbar_flexion=10))
     assert trunk_tibia_angle(lm) == pytest.approx(10.0)
 
 

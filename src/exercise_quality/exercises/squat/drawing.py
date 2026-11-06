@@ -11,13 +11,19 @@ COP_COLOUR = "black"
 
 
 def draw_pose(ax, landmarks, com=None, support=None, cop_x=None, alpha=1.0):
-    """Draw one frame. ``landmarks`` maps names to (2,) arrays."""
+    """Draw one frame. ``landmarks`` maps names to (2,) arrays.
+
+    The far side (left) is drawn first and fainter, so it sits behind.
+    """
     artists = []
-    for a, b in CONNECTIONS:
-        p, q = landmarks[a], landmarks[b]
-        artists += ax.plot([p[0], q[0]], [p[1], q[1]], lw=3, color=BODY_COLOUR,
-                           alpha=alpha, solid_capstyle="round")
-    pts = np.array(list(landmarks.values()))
+    far = [c for c in CONNECTIONS if c[0].startswith("left_")]
+    near = [c for c in CONNECTIONS if c not in far]
+    for group, fade in ((far, 0.4), (near, 1.0)):
+        for a, b in group:
+            p, q = landmarks[a], landmarks[b]
+            artists += ax.plot([p[0], q[0]], [p[1], q[1]], lw=3, color=BODY_COLOUR,
+                               alpha=alpha * fade, solid_capstyle="round")
+    pts = np.array([v for k, v in landmarks.items() if not k.startswith("left_")])
     artists.append(ax.scatter(pts[:, 0], pts[:, 1], s=14, color=JOINT_COLOUR,
                               zorder=3, alpha=alpha))
     if support is not None:
