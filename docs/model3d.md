@@ -78,7 +78,7 @@ Everything else moves by 0.1 or less. Kasahara's hip range stays at z +3.2, a kn
 | Model, Ishida-protocol cohort | 0.909 ± 0.050 |
 | squat_1, real MediaPipe video | 0.90 |
 
-The tracker-noise model needed a fitted "knees out 24°" term to produce this ([real_video_check.md](real_video_check.md)). The 3D geometry now gives it from the stance alone.
+The tracker-noise model used to need a fitted "knees out 24°" term to produce this. The 3D geometry gives it from the stance alone, so that term is gone. Filmed by a real-height phone the thigh looks a little longer (0.94), because the knee nearer the lens also looks bigger ([real_video_check.md](real_video_check.md)).
 
 **Knee frontal-plane projection angle** (FPPA: from the front, how far the knee bends off the hip-to-ankle line). At 60° of knee bend it's -28 ± 8°: knees outside the line, as knees over turned-out toes must be. This hasn't been checked against front-view data.
 
@@ -88,16 +88,16 @@ The tracker-noise model needed a fitted "knees out 24°" term to produce this ([
 
 | Camera | Knee | Trunk | Thigh | Depth grade agrees with a perfect side view | Marked reliable |
 |---|---|---|---|---|---|
-| side-on, 2 m | -3.9 (-12.1, -0.9) | +1.5 | +7.3 | 68% | 100% |
-| side-on, 3.5 m | -2.2 (-8.5, +1.5) | +0.9 | +4.2 | 84% | 100% |
-| side-on, 6 m | -1.0 (-6.7, +3.8) | +0.3 | +2.4 | 87% | 100% |
-| 15° off side-on, 3.5 m | -5.5 (-17.4, +0.6) | -2.6 | +7.5 | 72% | 100% |
-| 30° off, 3.5 m | -10.9 (-30.6, +0.2) | -7.1 | +12.3 | 65% | 0% |
-| 45° off, 3.5 m | -19.1 (-56.4, -0.7) | -14.3 | +18.5 | 60% | 0% |
+| side-on, 2 m | -2.1 (-8.8, +1.0) | +1.2 | +5.6 | 63% | 100% |
+| side-on, 3.5 m | -1.0 (-8.0, +2.5) | +0.5 | +3.1 | 82% | 100% |
+| side-on, 6 m | -0.5 (-6.1, +3.9) | +0.2 | +2.1 | 87% | 100% |
+| 15° off side-on, 3.5 m | -4.6 (-16.3, +1.6) | -1.9 | +6.5 | 64% | 100% |
+| 30° off, 3.5 m | -8.8 (-28.0, +2.2) | -5.1 | +10.1 | 53% | 0% |
+| 45° off, 3.5 m | -14.5 (-49.5, +1.0) | -10.0 | +15.2 | 43% | 0% |
 
-- **Even a perfect side camera reads the knee 1-2° less bent and the thigh 2-4° deeper than the true angles.** That's the knees travelling out of the plane, which a side view can't see. The rubric deliberately grades what the side view shows ([rubric.md](rubric.md)).
-- **A phone 2 m away adds perspective error.** The thigh reads 7° deeper and depth grades agree only 68% of the time. Iizuka et al. 2026 (PMC13347614) found a 2 m webcam underestimating hip and knee angles by about 11°, mostly from projection.
-- **Filming advice: 3.5 m or more, within about 15° of side-on.** The rubric's camera-angle check (26°) passes 15° off but rejects 30°, and errors grow quickly past 15°. Depth agreement stays below 90% even at 6 m, because about half of people asked to squat to parallel finish within a few degrees of it.
+- **Even a perfect side camera reads the knee 0.5-1° less bent and the thigh 2-3° deeper than the true angles.** That's the knees travelling out of the plane, which a side view can't see. The rubric deliberately grades what the side view shows ([rubric.md](rubric.md)).
+- **A phone 2 m away adds perspective error.** The thigh reads 6° deeper and depth grades agree only 63% of the time. Iizuka et al. 2026 (PMC13347614) found a 2 m webcam underestimating hip and knee angles by about 11°, mostly from projection.
+- **Filming advice: phone at knee height, 3.5 m or more away, within about 15° of side-on.** The table's cameras are at 1.0 m; a lens above the knees makes the thigh look higher at the bottom, by up to 7° at 1.3 m ([rubric.md](rubric.md), tolerances). The rubric's camera-angle check (26°) passes 15° off but rejects 30°, and errors grow quickly past 15°. Depth agreement stays below 90% even at 6 m, because about half of people asked to squat to parallel finish within a few degrees of it.
 
 ## Limits
 
@@ -112,4 +112,4 @@ The tracker-noise model needed a fitted "knees out 24°" term to produce this ([
   - The stance comes from loaded male lifters.
   - The hip joint width comes from one CT study, with sexes pooled.
 - **Knees over the toes is too narrow a default.** Five real front-view clips put the knees 3-14° further out than the toes point ([front_view_check.md](front_view_check.md)). The default isn't refitted yet.
-- **Not yet ported.** The real-video check and the rubric's synthetic tests still use the side-view model with the knees-out noise term. Moving them onto the 3D model and camera is the next step, along with a front-view rubric (knees caving in, hip shift, stance) once there are front-view videos.
+- **Ported:** the real-video check, the rubric's tolerances and its synthetic cohorts and fault tests now use 3D reps filmed by sampled phones (`camera.sample_side_camera`, `camera.filmed_track`). Phone placement (distance, height, up to 10° off side-on) is an assumption.

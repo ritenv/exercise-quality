@@ -87,16 +87,19 @@ Each criterion has a standard (parallel, no heel lift, trunk within its
 build allowance of the shin, no extra trunk lean on the way up, no
 upward movement on the way down) and a tolerance equal to the 95th
 percentile of the tracker measurement error for that quantity
-(``TOLERANCE``). The errors come from passing synthetic reps through the
-MediaPipe noise model (core/tracker_noise.py: jitter and drift, with its
-assumed spread between videos) and comparing with the exact values. The
-model's knees-out projection is not counted as error: it changes the
-side-view shin and thigh angles by a few degrees (trunk minus shin about
-+5, thigh about 3 deeper at 24 deg), but that is what a side view of a
-real squat shows, and the BSA criteria are judged from that view; ``measurement_tolerances()`` recomputes them and
-``tests/test_rubric.py`` checks the stored values. A deficit is only
-marked when the measurement is past the standard by more than a tracker
-could plausibly be wrong. The tolerances are about tracking error, not a
+(``TOLERANCE``). The errors come from 3D synthetic reps (sampled stance,
+knees travelling out over the toes) filmed by phones placed as people
+place them (``video.camera.sample_side_camera``: within 10 deg of
+side-on, 3-5 m away, lens 0.4-1.3 m high), read by the real-video
+pipeline with MediaPipe-like jitter and drift, against a perfect side
+view of the same rep (the true centre of mass for balance).
+``measurement_tolerances()`` recomputes them and ``tests/test_rubric.py``
+checks the stored values. The phone's height dominates the depth
+tolerance: knees travelling out towards a lens above them look lower, so
+the thigh looks higher. A lens at knee height reads the thigh within
+1 deg; at 1.3 m and 10 deg towards the front, 7 deg higher
+(docs/rubric.md). A deficit is only marked when the measurement is past
+the standard by more than a tracker and phone could plausibly be wrong. The tolerances are about tracking error, not a
 coaching judgement of what is "close enough".
 
 Score
@@ -135,13 +138,13 @@ PARALLEL_THIGH = -90.0
 # 95th percentile of |tracker error| for each graded quantity: mean of
 # measurement_tolerances(n=300) with seeds 0 and 1 (see module docstring).
 TOLERANCE = {
-    "depth": 3.1,          # deg of thigh angle
+    "depth": 6.6,          # deg of thigh angle; mostly the phone's height (see measurement_tolerances)
     "heels": 0.088,        # fraction of foot length (about 2.3 cm)
-    "trunk": 3.8,          # deg of trunk minus shin
-    "ascent": 4.8,         # deg of trunk lean, up minus down
-    "descent": 0.039,      # fraction of standing hip height
-    "balance": 0.080,      # fraction of foot length (full noise model, see measurement_tolerances)
-    "lockout": 0.27,       # deg of knee flexion at the top (signed: only "looks bent" errors)
+    "trunk": 4.6,          # deg of trunk minus shin
+    "ascent": 4.3,         # deg of trunk lean, up minus down
+    "descent": 0.042,      # fraction of standing hip height
+    "balance": 0.094,      # fraction of foot length, against the true centre of mass
+    "lockout": 0.28,       # deg of knee flexion at the top (signed: only "looks bent" errors)
     "consistency": 4.5,    # deg, one rep vs another of the same video
 }
 
@@ -460,27 +463,31 @@ def assess(track, body=None, sex=None, population=None):
                         getattr(body, "subject_id", ""), reported, bsa_score)
 
 
-def measurement_tolerances(n=300, seed=0, quantile=95.0):
-    """Recompute ``TOLERANCE`` from the tracker-noise model on synthetic reps.
+def measurement_tolerances(n=300, seed=0, quantile=95.0, raw=False):
+    """Recompute ``TOLERANCE`` from 3D synthetic reps filmed by sampled phone cameras.
 
-    BSA criteria and lockout: jitter and drift only (see module docstring).
-    Balance: the full noise model including the knees-out projection,
-    because the centre of mass is a physical quantity and the projection
-    distorts its estimate. Consistency: two noise draws with the same
-    video-level settings stand in for two reps of one video; the error is
-    the difference between their errors.
+    Each rep is a 3D person (sampled stance, core/model3d.py) seen by a
+    phone placed as people place one (``camera.sample_side_camera``),
+    read by the real-video pipeline, with tracker jitter and drift. The
+    reference is a perfect (orthographic) side view of the same rep for
+    the BSA criteria and lockout, which are judged on what a side view
+    shows, and the true centre of mass for balance. Consistency: two noise
+    draws with the same camera and noise settings stand in for two reps of
+    one video; the error is the difference between their errors.
     """
     from dataclasses import replace
 
     from exercise_quality.core import tracker_noise as TN
+    from exercise_quality.core.model3d import sample_body3d
     from exercise_quality.core.observed import from_model_landmarks
     from exercise_quality.core.timing import RepTiming
     from exercise_quality.exercises.squat.balanced import generate_feasible_squat
-    from exercise_quality.exercises.squat.protocols import ISHIDA_PARALLEL, ZAWADKA_MAX_DEPTH, sample_style
+    from exercise_quality.exercises.squat.protocols import (ISHIDA_PARALLEL, ZAWADKA_MAX_DEPTH, sample_stance,
+                                                            sample_style)
+    from exercise_quality.video import camera as cam
 
     population = _population()
     rng = np.random.default_rng(seed)
-    extra = np.random.default_rng(seed + 10_000)   # separate stream: the BSA tolerances stay as they were
     errors = {k: [] for k in TOLERANCE}
 
     def measured(track, body):
@@ -492,21 +499,20 @@ def measurement_tolerances(n=300, seed=0, quantile=95.0):
         return smooth, found[0], rep_measures(smooth, angles, found, 0, body)
 
     while len(errors["depth"]) < n:
-        body = population.sample(rng)
+        body3d = sample_body3d(population, rng)
+        body = body3d.sagittal
         protocol = ISHIDA_PARALLEL if rng.random() < 0.5 else ZAWADKA_MAX_DEPTH
         style = sample_style(rng, body, protocol)
         tempo = RepTiming(stand_before=0.6, descent=rng.uniform(0.8, 2.5), ascent=rng.uniform(0.6, 2.5),
                           stand_after=0.6)
-        style = replace(style, timing=tempo)
-        seq = generate_feasible_squat(body, style, fps=30.0)
+        style = replace(style, timing=tempo, stance=sample_stance(rng))
+        seq = generate_feasible_squat(body3d, style, fps=30.0)
         if not seq.is_feasible:
             continue
-        clean = R.smoothed(from_model_landmarks(seq.landmarks, 30.0))
-        # Tracker error only: jitter and drift. The knees-out projection is
-        # left out because it is what a side view really shows, which is
-        # what the BSA's lateral-view criteria are judged on.
-        noise = replace(TN.TrackerNoise.sample(rng), knee_out_deg=0.0)
-        noisy = R.smoothed(TN.apply(from_model_landmarks(seq.landmarks, 30.0), noise, rng))
+        exact = from_model_landmarks(seq.landmarks, 30.0)
+        filmed = cam.filmed_track(seq, cam.sample_side_camera(rng))
+        noise = TN.TrackerNoise.sample(rng)
+        clean, noisy = R.smoothed(exact), R.smoothed(TN.apply(filmed, noise, rng))
         reps_c, reps_n = R.find_reps(clean), R.find_reps(noisy)
         if len(reps_c) != 1 or len(reps_n) != 1:
             continue
@@ -517,22 +523,20 @@ def measurement_tolerances(n=300, seed=0, quantile=95.0):
         errors["ascent"].append(fn["trunk_extra_on_ascent"] - fc["trunk_extra_on_ascent"])
         errors["descent"].append(descent_interruption(noisy, reps_n[0]) - descent_interruption(clean, reps_c[0]))
 
-        exact = measured(from_model_landmarks(seq.landmarks, 30.0), body)
-        if exact is None:
+        mc = measured(exact, body)
+        m1 = measured(TN.apply(filmed, noise, rng), body)
+        m2 = measured(TN.apply(filmed, noise, rng), body)
+        if mc is None or m1 is None:
             continue
-        mc = exact[2]
-        mn = measured(TN.apply(from_model_landmarks(seq.landmarks, 30.0), noise, extra), body)
-        full = TN.TrackerNoise.sample(extra)
-        m1 = measured(TN.apply(from_model_landmarks(seq.landmarks, 30.0), full, extra), body)
-        m2 = measured(TN.apply(from_model_landmarks(seq.landmarks, 30.0), full, extra), body)
-        if mn is not None:
-            errors["lockout"].append(mn[2]["knee_at_top"] - mc["knee_at_top"])
-        if m1 is not None:
-            errors["balance"].append(m1[2]["com_at_bottom"] - mc["com_at_bottom"])
-        if m1 is not None and m2 is not None:
+        errors["lockout"].append(m1[2]["knee_at_top"] - mc[2]["knee_at_top"])
+        bottom = int(np.argmax(seq.angles.knee_flexion))
+        errors["balance"].append(m1[2]["com_at_bottom"] - float(seq.support.fraction(seq.com[bottom, 0])))
+        if m2 is not None:
             errors["consistency"].append(max(
                 abs(m1[2]["thigh_at_bottom"] - m2[2]["thigh_at_bottom"]),
                 abs(m1[2]["trunk_at_bottom"] - m2[2]["trunk_at_bottom"])))
+    if raw:
+        return errors
     # Lockout takes the most extended frame, so noise mostly makes the knee
     # look straighter; only errors towards "bent" can fail a locked knee.
     return {k: float(np.percentile(v, quantile) if k == "lockout" else np.percentile(np.abs(v), quantile))

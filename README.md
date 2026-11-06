@@ -14,7 +14,7 @@ The current focus is making the generated movement true to life before any machi
 - Adds **natural postural sway** matched to quiet-standing force-plate data, so nobody stands unnaturally still.
 - Checks the **dynamic centre of pressure** to confirm each rep would stay on its feet.
 - Compares simulated cohorts with **published squat and standing studies**. See [docs/validation.md](docs/validation.md), including where it falls short.
-- Tracks **real videos** with MediaPipe Pose and compares them with synthetic reps of matched people, seen through a **tracker-noise model** measured on real video. See [docs/real_video_check.md](docs/real_video_check.md).
+- Tracks **real videos** with MediaPipe Pose and compares them with 3D synthetic reps of matched people, filmed by a **virtual phone** and given tracker noise measured on real video. See [docs/real_video_check.md](docs/real_video_check.md).
 - Grades squats with a **side-view form rubric**: five criteria from the Back Squat Assessment, plus balance over the foot, lockout at the top and rep-to-rep consistency. The trunk criterion allows for build: someone whose proportions need more forward lean to balance isn't marked down for it. See [docs/rubric.md](docs/rubric.md).
 
 - Has a **3D model** and a **virtual phone camera**: feet apart and turned out, each leg in its own plane, faults such as knees caving in, and MediaPipe-style landmarks from any camera angle, which go through the same code as real video. See [docs/model3d.md](docs/model3d.md).

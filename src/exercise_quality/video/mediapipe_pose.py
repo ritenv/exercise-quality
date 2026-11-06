@@ -115,6 +115,49 @@ def world_yaw_scale(raw):
     return float(np.nanmedian(np.cos(theta)))
 
 
+def side_view_offset(raw):
+    """Signed camera angle from side-on (deg): positive = towards the person's front.
+
+    The size comes from ``world_yaw_scale``; the sign from the image: seen
+    from in front of side-on, the far hip appears ahead of the near one (in
+    the direction the feet point), and behind it when seen from behind.
+    Checked on virtual-camera reps (tests/test_camera.py).
+    """
+    side, _ = near_side(raw)
+    near, far = (1, 0) if side == "right" else (0, 1)
+    image = raw["image"]
+    facing = np.sign(np.nanmedian(image[:, INDEX["toe"][near], 0] - image[:, INDEX["heel"][near], 0]))
+    ahead = np.nanmedian((image[:, INDEX["hip"][far], 0] - image[:, INDEX["hip"][near], 0]) * facing)
+    angle = float(np.degrees(np.arccos(np.clip(world_yaw_scale(raw), 0.0, 1.0))))
+    return angle if ahead >= 0 else -angle
+
+
+# Far heel above the near heel in standing (fraction of the near leg's
+# image height) against lens height, from virtual-camera reps filmed side-on
+# 3-5 m away with sampled stances: 0.042 at 0.4 m, 0.082 at 0.8, 0.118 at
+# 1.2, 0.144 at 1.5 (10-90% about +-0.015, i.e. +-0.15 m).
+FAR_HEEL_PER_METRE = 0.093
+FAR_HEEL_AT_FLOOR = 0.005
+
+
+def lens_height_estimate(raw):
+    """Rough camera lens height above the floor (m) from floor perspective, side views only.
+
+    A lens above the floor sees the far foot higher in the image than the
+    near one, more so the higher it is. Calibrated on virtual-camera reps
+    (``FAR_HEEL_PER_METRE``), not on real cameras; MediaPipe's far-foot
+    points may carry their own bias.
+    """
+    side, _ = near_side(raw)
+    near, far = (1, 0) if side == "right" else (0, 1)
+    image = raw["image"]
+    leg = np.abs(image[:, INDEX["ankle"][near], 1] - image[:, INDEX["hip"][near], 1])
+    standing = leg > np.nanpercentile(leg, 80)
+    rise = np.nanmedian((image[standing, INDEX["heel"][near], 1] - image[standing, INDEX["heel"][far], 1])
+                        / leg[standing])
+    return float((rise - FAR_HEEL_AT_FLOOR) / FAR_HEEL_PER_METRE)
+
+
 def _points(raw, side, source):
     i = 0 if side == "left" else 1
     return {k: source[:, idx[i]].astype(float) for k, idx in INDEX.items()}

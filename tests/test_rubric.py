@@ -181,22 +181,25 @@ def test_bsa_totals_leave_out_the_extra_checks(body):
     assert result.score < result.bsa_score
 
 
-def test_knees_out_does_not_push_the_balance_estimate_back(body, population):
-    from exercise_quality.core import tracker_noise as TN
-
-    track = make_track(body)
-    exact = rubric.assess(track, body=body).reps[0].features["com_at_bottom"]
-    rng = np.random.default_rng(0)
-    knees_out = TN.TrackerNoise(jitter_scale=0.0, drift_scale=0.0, knee_out_deg=30.0)
-    noisy = TN.apply(track, knees_out, rng)
-    seen = rubric.assess(noisy, body=body).reps[0].features["com_at_bottom"]
-    # the same pose rebuilt with full-length segments, as before the correction
+def test_knees_out_does_not_push_the_balance_estimate_back(population):
+    from exercise_quality.core.model3d import Stance, make_body3d
     from exercise_quality.core.observed import observed_angles
     from exercise_quality.core.observed_balance import com_fraction
     from exercise_quality.exercises.squat import reps as R
-    smooth = R.smoothed(noisy)
+
+    body3d = make_body3d(population, "male", 40)
+    base = SquatStyle(peak_knee_flexion=130.0, ankle_knee_ratio=0.3, trunk_peak_preference=30.0,
+                      timing=RepTiming(stand_before=0.6, descent=1.5, ascent=1.5, stand_after=0.6),
+                      stance=Stance(width_ratio=1.6, toe_out=35.0))
+    seq = generate_feasible_squat(body3d, base, fps=30.0)
+    assert seq.is_feasible
+    track = from_model_landmarks(seq.landmarks, 30.0)       # a perfect side view of the 3D rep
+    true = float(seq.support.fraction(seq.com[int(np.argmax(seq.angles.knee_flexion)), 0]))
+    seen = rubric.assess(track, body=body3d.sagittal).reps[0].features["com_at_bottom"]
+    # the same pose rebuilt with full-length segments, as before the correction
+    smooth = R.smoothed(track)
     angles = observed_angles(smooth)
     b = rubric._bottom(angles, R.find_reps(smooth, angles)[0])
-    naive = float(com_fraction(body, {k: v[b] for k, v in angles.items()}))
-    assert abs(seen - exact) < 0.05
-    assert abs(seen - exact) < 0.3 * abs(naive - exact)
+    naive = float(com_fraction(body3d.sagittal, {k: v[b] for k, v in angles.items()}))
+    assert abs(seen - true) < 0.05
+    assert abs(seen - true) < 0.5 * abs(naive - true)

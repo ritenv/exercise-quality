@@ -74,3 +74,30 @@ def test_mediapipe_points_land_where_the_model_puts_them(seq):
     b = seq.body
     expected = b.hip_joint_width + cam.MEDIAPIPE_HIP_OUTWARD * (b.hip_breadth - b.hip_joint_width)
     np.testing.assert_allclose(width, expected, rtol=1e-3)
+
+
+def test_side_view_offset_and_lens_height_are_recovered():
+    from exercise_quality.core.model3d import Stance, median_body3d
+    from exercise_quality.core.sagittal_body import BodyPopulation
+    from exercise_quality.exercises.squat.balanced import SquatStyle, generate_feasible_squat
+    from exercise_quality.video import camera as cam, mediapipe_pose as mpp
+
+    body = median_body3d(BodyPopulation.load(), "female")
+    seq = generate_feasible_squat(body, SquatStyle(stance=Stance()), fps=30.0)
+    for offset in (-40.0, -15.0, 15.0, 40.0):
+        raw = cam.synthetic_raw(seq, cam.Camera(azimuth=90.0 - offset))
+        assert mpp.side_view_offset(raw) == pytest.approx(offset, abs=1.0)
+    for lens in (0.4, 1.2):
+        raw = cam.synthetic_raw(seq, cam.Camera(lens_height=lens, distance=4.0))
+        assert mpp.lens_height_estimate(raw) == pytest.approx(lens, abs=0.25)
+
+
+def test_sampled_side_cameras_follow_the_filming_ranges():
+    import numpy as np
+    from exercise_quality.video import camera as cam
+
+    rng = np.random.default_rng(0)
+    cams = [cam.sample_side_camera(rng) for _ in range(200)]
+    assert all(abs(c.azimuth - 90.0) <= cam.SIDE_AZIMUTH_SPREAD for c in cams)
+    assert all(cam.SIDE_LENS_HEIGHT[0] <= c.lens_height <= cam.SIDE_LENS_HEIGHT[1] for c in cams)
+    assert cam.sample_side_camera(rng, offset=20.0).azimuth == 70.0

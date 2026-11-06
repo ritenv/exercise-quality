@@ -13,7 +13,7 @@ This describes the balance-constrained squat generator (`exercises/squat/balance
 7. **Feasibility.** If someone can't reach the requested depth without falling backwards or rounding their back past its limit, they squat as deep as they can (`generate_feasible_squat`), as a real person would. The rep is noted `depth_limited_by_mobility`.
 8. **Sway.** A slow random wobble of the balance target (shaped like quiet-standing centre-of-pressure data and passed through the inverted-pendulum relation to the centre of mass) keeps people from standing unnaturally still. The solver turns it into small ankle and trunk motion.
 9. **Check.** The true centre of pressure, including accelerations and segment rotation, is computed (`core/dynamics.py`) to confirm the person would actually stay on their feet.
-10. **Tracker view (optional).** For comparison with real video and for grading, a rep can be reduced to the points MediaPipe Pose reports (`core/observed.py`) and passed through a noise model measured on real video (`core/tracker_noise.py`): jitter, slow landmark drift, and the knees-out projection. See [real_video_check.md](real_video_check.md) and [rubric.md](rubric.md).
+10. **Tracker view (optional).** For comparison with real video and for grading, a rep can be reduced to the points MediaPipe Pose reports (`core/observed.py`) and passed through a noise model measured on real video (`core/tracker_noise.py`): jitter and slow landmark drift. For grading and real-video comparison, 3D reps are filmed by a virtual phone instead ([model3d.md](model3d.md)), which gives the knees-out projection from geometry. See [real_video_check.md](real_video_check.md) and [rubric.md](rubric.md).
 
 11. **3D (optional).** With a stance and a body with breadths, the same angles drive a 3D pose: feet apart and turned out, each leg in its own plane, balance on the 3D centre of mass. A virtual camera reports MediaPipe-style landmarks from any angle. See [model3d.md](model3d.md).
 
@@ -87,9 +87,9 @@ This describes the balance-constrained squat generator (`exercises/squat/balance
 | Tempo | 2 s down, 2 s up | Protocol (Ishida, Kasahara). The ±25% jitter on the Zawadka protocol is an assumption. |
 | Ascent mirrors descent | | Assumption, no ascent data used. Two real videos rise slightly hips-first (3-4 deg more trunk lean on the way up at the same height); see real_video_check.md. |
 | Depth reduction when infeasible | 2 deg steps, down to 60 deg | Assumption about behaviour (people stop where they can) |
-| Tracker jitter, drift and knees-out size | see `core/tracker_noise.py` | Measured on one side-on clip. Spreads between videos are assumptions. |
+| Tracker jitter and drift | see `core/tracker_noise.py` | Measured on one side-on clip. Spreads between videos are assumptions. |
 | Ear position for the tracker view | 55% of C7-to-vertex | Assumption (head position only) |
-| Rubric tolerances | 95th percentile of tracker error | Derived from the noise model (`rubric.measurement_tolerances`) |
+| Rubric tolerances | 95th percentile of tracker error | Derived from 3D reps filmed by sampled phones with the noise model (`rubric.measurement_tolerances`) |
 | Rubric lockout and consistency standards | knee within 5 deg of straight; a rep within 10 deg of the others | Conventions, no published pass mark (rubric.md) |
 | Centre of mass from a tracked pose | thigh and shank at their seen length | Sagittal projection of the 3D centre of mass (`observed_balance.projected_body`) |
 | Build allowance in the trunk criterion | balance at 36.8 deg shin, COM at 36.3% of foot | Model-derived from Ishida's cued shin lean and natural COP |

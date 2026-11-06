@@ -124,6 +124,14 @@ def make_body3d(population, sex, index):
                   foot_breadth=row["foot_breadth_m"], head_breadth=row["head_breadth_m"])
 
 
+def body3d_of(population, body):
+    """The Body3D of an ANSUR II person given their side-view ``Body`` (matched by subject id)."""
+    for i, row in enumerate(population._by_sex[body.sex]):
+        if row["subject_id"] == body.subject_id:
+            return make_body3d(population, body.sex, i)
+    raise KeyError(f"no ANSUR II {body.sex} subject {body.subject_id!r}")
+
+
 def sample_body3d(population, rng, sex=None, female_share=0.5):
     if sex is None:
         sex = "female" if rng.random() < female_share else "male"

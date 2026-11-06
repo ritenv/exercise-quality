@@ -118,25 +118,23 @@ def test_noise_is_reproducible_and_scaled_to_the_body(squat):
     np.testing.assert_allclose(c["knee"], 100.0 * a["knee"], rtol=1e-9, atol=1e-9)
 
 
-def test_knees_out_shortens_the_apparent_thigh_only_when_bent(squat):
-    track = from_model_landmarks(squat.landmarks, squat.fps)
-    quiet = TN.TrackerNoise(jitter_scale=0.0, drift_scale=0.0, knee_out_deg=24.0)
-    out = TN.apply(track, quiet, np.random.default_rng(0))
-    before, after = segment_lengths(track), segment_lengths(out)
+def test_matched_synthetic_reps_are_3d_and_filmed():
+    body = C._population().body("female", 10)
+    timing = C.matched_timing(0.8, 0.3, 0.7)
+    out = C.synthetic_rep(body, 110.0, timing, C.arm_posture(150, 110), 3, return_track=True)
+    assert out is not None
+    features, track, _ = out
+    assert track.units == "px" and track.source.startswith("mediapipe:synthetic")
+    # knees travelling out over turned-out toes shorten the thigh a side camera sees
+    lengths = segment_lengths(track)
     knee = observed_angles(track)["knee_flexion"]
-    ratio = after["thigh"] / before["thigh"]
-    expected = np.cos(np.radians(24.0 * np.clip(knee / 60.0, 0.0, 1.0)))
-    np.testing.assert_allclose(ratio, expected, atol=1e-9)
-    assert np.allclose(ratio[knee > 60], np.cos(np.radians(24.0)), atol=1e-9)
-    np.testing.assert_allclose(after["shank"], before["shank"], rtol=1e-9)
-    np.testing.assert_allclose(out["hip"], track["hip"])
-    np.testing.assert_allclose(out["ankle"], track["ankle"])
+    assert np.median(lengths["thigh"][knee > 90]) < 0.97 * np.median(lengths["thigh"][knee < 10])
 
 
 def test_noise_model_reproduces_the_measured_jitter(squat):
     track = from_model_landmarks(squat.landmarks, squat.fps)
     long = track.map_points(lambda v: np.concatenate([v] * 8))
-    noisy = TN.apply(long, TN.TrackerNoise(drift_scale=0.0, knee_out_deg=0.0), np.random.default_rng(1))
+    noisy = TN.apply(long, TN.TrackerNoise(drift_scale=0.0), np.random.default_rng(1))
     smooth = R.smoothed(noisy)
     leg = float(np.median(segment_lengths(smooth)["thigh"] + segment_lengths(smooth)["shank"]))
     for name in ("hip", "knee", "ankle"):

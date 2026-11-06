@@ -67,7 +67,7 @@ def job(seed):
         return None
     exact_grades = {g: exact.reps[0].criteria[g].passed for g in GRADED}
     out = {}
-    noise = replace(TN.TrackerNoise.sample(rng), knee_out_deg=0.0)
+    noise = TN.TrackerNoise.sample(rng)
     for az in AZIMUTHS:
         for d in DISTANCES:
             raw = cam.synthetic_raw(seq, cam.Camera(azimuth=az, distance=d), noise=noise, rng=rng)

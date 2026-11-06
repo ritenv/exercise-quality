@@ -3,12 +3,13 @@
 Usage:
     PYTHONPATH=src python scripts/real_video_check.py [N_PER_REP] [--figures DIR]
 
-For every stored MediaPipe track (src/exercise_quality/data/real_video):
+For every stored side-view MediaPipe track (src/exercise_quality/data/real_video):
   1. find the reps and measure them (exercises/squat/reps.py);
   2. pick the 40 ANSUR II people whose proportions best match the person;
-  3. for each real rep, generate N_PER_REP synthetic reps with the same
-     depth, tempo and arm position, pass them through the tracker-noise
-     model and measure them the same way;
+  3. for each real rep, generate N_PER_REP 3D synthetic reps with the same
+     depth, tempo and arm position (stance sampled), film them with a
+     virtual phone at the clip's angle from side-on, add tracker jitter
+     and drift and measure them the same way;
   4. report where each real rep falls in its synthetic distribution;
   5. measure the tracker's own noise and compare with the noise model.
 
@@ -51,18 +52,18 @@ COMPARED = [
 
 
 def _job(args):
-    body, knee, timing, arms, seed, fps = args
-    return C.synthetic_rep(body, knee, timing, arms, seed, fps=fps)
+    body, knee, timing, arms, seed, fps, offset = args
+    return C.synthetic_rep(body, knee, timing, arms, seed, fps=fps, camera_offset=offset)
 
 
-def calibrated_targets(body, rep_feats, fps, seeds=range(6)):
+def calibrated_targets(body, rep_feats, fps, offset, seeds=range(6)):
     """Timing and knee target whose *measured* synthetic values match the real rep."""
     knee = rep_feats["knee_peak"]
     target = np.array([rep_feats["descent_s"], rep_feats["bottom_s"], rep_feats["ascent_s"]])
     timing = C.matched_timing(*target)
     arms = C.arm_posture(rep_feats["shoulder_flexion_at_bottom"], rep_feats["elbow_flexion_at_bottom"])
     for _ in range(2):
-        runs = [C.synthetic_rep(body, knee, timing, arms, s, fps=fps) for s in seeds]
+        runs = [C.synthetic_rep(body, knee, timing, arms, s, fps=fps, camera_offset=offset) for s in seeds]
         runs = [r for r in runs if r]
         if not runs:
             break
@@ -153,7 +154,12 @@ def check_clip(name, info, population, n_per_rep, pool, figures):
             world_feats[match[0]] = R.rep_features(world, r, world_angles)
 
     print(f"\n## {name}  ({info.get('view', '')}; {info.get('arms', '')})")
-    print(f"yaw correction c = {track.yaw_scale:.3f}; {len(reps)} reps; matched as {sex}")
+    raw_clip = mpp.load_raw(name)
+    offset = mpp.side_view_offset(raw_clip)
+    lens = (f", lens about {mpp.lens_height_estimate(raw_clip):.1f} m high from floor perspective"
+            if track.yaw_scale > 0.95 else "")
+    print(f"yaw correction c = {track.yaw_scale:.3f}, camera {offset:+.0f} deg from side-on "
+          f"(+ = towards the front){lens}; {len(reps)} reps; matched as {sex}")
     print("proportions (tracker view, over leg length) and ANSUR percentile:")
     for r in C.RATIOS:
         used = "matched" if MATCH_WEIGHTS[r] else "not used"
@@ -170,8 +176,8 @@ def check_clip(name, info, population, n_per_rep, pool, figures):
 
     results, real_curves, synth_curves = [], [], []
     for i, (rep, f) in enumerate(zip(reps, feats)):
-        knee, timing, arms = calibrated_targets(bodies[0], f, track.fps)
-        jobs = [(bodies[j % len(bodies)], knee, timing, arms, 1000 * i + j, track.fps)
+        knee, timing, arms = calibrated_targets(bodies[0], f, track.fps, offset)
+        jobs = [(bodies[j % len(bodies)], knee, timing, arms, 1000 * i + j, track.fps, offset)
                 for j in range(n_per_rep)]
         synth = [s for s in pool.map(_job, jobs) if s]
         results.append((f, synth))
@@ -179,7 +185,7 @@ def check_clip(name, info, population, n_per_rep, pool, figures):
         if i < 3:
             for j in range(min(15, n_per_rep)):
                 out = C.synthetic_rep(bodies[j % len(bodies)], knee, timing, arms, 1000 * i + j,
-                                      fps=track.fps, return_track=True)
+                                      fps=track.fps, return_track=True, camera_offset=offset)
                 if out:
                     _, st, sr = out
                     synth_curves.append(descent_curves(st, sr, observed_angles(st)))
@@ -214,7 +220,7 @@ def noise_report(track, population):
     print("\n## Tracker noise: real (side-on clip) vs noise model on matched synthetic reps")
     jitter, angle_jitter, trend = tracker_noise_table(track)
     rng = np.random.default_rng(0)
-    body = population.median_body("female")
+    body = population.sample(np.random.default_rng(0), sex="female")
     synth_tables = []
     for seed in range(20):
         out = C.synthetic_rep(body, 110.0, C.matched_timing(0.8, 0.3, 0.7), C.arm_posture(150, 110),
@@ -235,7 +241,7 @@ def noise_report(track, population):
         print(f"{'angle jitter ' + k + ' (deg)':40s} {angle_jitter[k]:8.2f} {mean_of(1, k):8.2f}  not fitted")
     for seg in trend:
         print(f"{seg + ' length at 100 deg knee / standing':40s} {trend[seg]:8.3f} {mean_of(2, seg):8.3f}  "
-              f"{'fitted' if seg == 'thigh' else 'not fitted'}")
+              "not fitted" + (" (3D stance and camera)" if seg == "thigh" else ""))
 
 
 def main(argv=None):
@@ -249,6 +255,8 @@ def main(argv=None):
     with ProcessPoolExecutor(max_workers=os.cpu_count()) as pool:
         for name in mpp.available():
             info = manifest.get(name, {})
+            if info.get("view", "").startswith("front"):
+                continue        # front views: scripts/front_view_check.py
             track = check_clip(name, info, population, args.n_per_rep, pool, args.figures)
             if side_on is None and track.yaw_scale > 0.95:
                 side_on = track

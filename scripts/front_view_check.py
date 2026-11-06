@@ -21,7 +21,6 @@ docs/front_view_check.md explains the results.
 import os
 import sys
 from concurrent.futures import ProcessPoolExecutor
-from dataclasses import replace
 
 import numpy as np
 
@@ -132,7 +131,7 @@ def job(args):
                          and r["fppa_right_half"] - r["fppa_left_half"], asym, -35.0, 35.0, steps=8)
         if azimuth is None:
             return None
-    noise = replace(TN.TrackerNoise.sample(rng), knee_out_deg=0.0)
+    noise = TN.TrackerNoise.sample(rng)
     over_toes = _film(body, stance(width), knee, timing, camera(azimuth), noise, rng)
     fitted = _film(body, stance(width, track), knee, timing, camera(azimuth), noise, rng)
     return {

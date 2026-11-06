@@ -4,12 +4,14 @@ Usage:
     PYTHONPATH=src python scripts/rubric_report.py [N]
 
 1. Real clips: every stored MediaPipe track, graded.
-2. Synthetic cohorts (Ishida parallel, Zawadka maximal depth), seen through
-   the tracker-noise model: how often each criterion passes, and how often
-   the grade from the noisy view agrees with the grade from exact positions
-   (the label noise a model trained on these grades would face).
-3. Known faults: injected into synthetic reps; how often each is caught,
-   and how often clean reps are wrongly marked (false alarms).
+2. Synthetic cohorts (Ishida parallel, Zawadka maximal depth): 3D reps
+   with sampled stances, filmed by phones placed as people place them
+   (video/camera.py), with tracker jitter and drift: how often each
+   criterion passes, and how often the grade from the filmed view agrees
+   with the grade from a perfect side view (the label noise a model
+   trained on these grades would face).
+3. Known faults: edited into the filmed track before tracker noise; how
+   often each is caught.
 4. Build allowance: how the trunk allowance varies with proportions across
    ANSUR II at parallel depth.
 
@@ -25,12 +27,14 @@ from functools import partial
 import numpy as np
 
 from exercise_quality.core import tracker_noise as TN
+from exercise_quality.core.model3d import sample_body3d
 from exercise_quality.core.observed import from_model_landmarks
 from exercise_quality.core.timing import RepTiming
 from exercise_quality.exercises.squat import rubric
 from exercise_quality.exercises.squat import track_faults as F
 from exercise_quality.exercises.squat.balanced import ARMS_CROSSED, generate_feasible_squat
-from exercise_quality.exercises.squat.protocols import ISHIDA_PARALLEL, ZAWADKA_MAX_DEPTH, sample_style
+from exercise_quality.exercises.squat.protocols import ISHIDA_PARALLEL, ZAWADKA_MAX_DEPTH, sample_stance, sample_style
+from exercise_quality.video import camera as cam
 from exercise_quality.video import compare as C
 from exercise_quality.video import mediapipe_pose as mpp
 
@@ -52,20 +56,24 @@ FAULTS = {
 
 
 def _rep_track(seed, protocol, fault=None):
+    """(side-view body, perfect side view, filmed track, rng) of one 3D rep."""
     pop = rubric._population()
     rng = np.random.default_rng(seed)
-    body = pop.sample(rng)
+    body3d = sample_body3d(pop, rng)
+    body = body3d.sagittal
     style = sample_style(rng, body, protocol)
     style = replace(style, timing=RepTiming(stand_before=0.6, descent=rng.uniform(1.0, 2.5),
-                                            ascent=rng.uniform(0.8, 2.5), stand_after=0.6))
+                                            ascent=rng.uniform(0.8, 2.5), stand_after=0.6),
+                    stance=sample_stance(rng))
     if fault == "shallow (knee 85 deg)":
         style = replace(style, peak_knee_flexion=85.0)
     if fault == "forward lean (trunk pref 65, low ankle)":
         style = replace(style, trunk_peak_preference=65.0, ankle_knee_ratio=0.18)
-    seq = generate_feasible_squat(body, style, fps=30.0)
+    seq = generate_feasible_squat(body3d, style, fps=30.0)
     if not seq.is_feasible:
         return None
-    return body, from_model_landmarks(seq.landmarks, 30.0), rng
+    filmed = cam.filmed_track(seq, cam.sample_side_camera(rng))
+    return body, from_model_landmarks(seq.landmarks, 30.0), filmed, rng
 
 
 def _grade(track, body):
@@ -81,9 +89,9 @@ def cohort_job(args):
     made = _rep_track(seed, protocol)
     if made is None:
         return None
-    body, clean, rng = made
-    noisy = TN.apply(clean, TN.TrackerNoise.sample(rng), rng)
-    a, b = _grade(clean, body), _grade(noisy, body)
+    body, exact, filmed, rng = made
+    noisy = TN.apply(filmed, TN.TrackerNoise.sample(rng), rng)
+    a, b = _grade(exact, body), _grade(noisy, body)
     if a is None or b is None:
         return None
     return a, b
@@ -94,10 +102,10 @@ def fault_job(args):
     made = _rep_track(seed, ISHIDA_PARALLEL, fault)
     if made is None:
         return None
-    body, clean, rng = made
+    body, _, filmed, rng = made
     criterion, edit = FAULTS[fault]
     try:
-        faulty = edit(clean) if edit else clean
+        faulty = edit(filmed) if edit else filmed
     except ValueError:
         return None
     noisy = TN.apply(faulty, TN.TrackerNoise.sample(rng), rng)
@@ -112,6 +120,8 @@ def real_clips():
     manifest = mpp.manifest()
     for name in mpp.available():
         info = manifest.get(name, {})
+        if info.get("view", "").startswith("front"):
+            continue        # the side-view rubric; front views have their own measures
         result = rubric.assess(mpp.observed_track(name), sex=info.get("apparent_sex"))
         print(f"\n### {name} ({info.get('view', '')})")
         print(f"reliable: {result.reliable}; score {result.score:.0f} (BSA only {result.bsa_score:.0f}); "
@@ -131,7 +141,7 @@ def real_clips():
 
 
 def synthetic_cohorts(pool, n):
-    print("\n## Synthetic cohorts through the tracker view")
+    print("\n## Synthetic cohorts: 3D reps filmed by sampled phones, with tracker noise")
     for protocol in (ISHIDA_PARALLEL, ZAWADKA_MAX_DEPTH):
         out = [o for o in pool.map(cohort_job, [(s, protocol) for s in range(n)]) if o]
         clean = np.array([[o[0][0][c] for c in CRITERIA] for o in out])
@@ -153,7 +163,7 @@ def synthetic_cohorts(pool, n):
 
 
 def fault_detection(pool, n):
-    print("\n## Injected faults (tracked view, Ishida-style reps)")
+    print("\n## Injected faults (filmed and tracked, Ishida-style reps)")
     print(f"{'fault':42s} {'criterion':10s} {'caught':>7s} {'n':>5s}")
     for fault, (criterion, _) in FAULTS.items():
         out = [o for o in pool.map(fault_job, [(s, fault) for s in range(n)]) if o is not None]

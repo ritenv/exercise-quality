@@ -2,7 +2,7 @@
 
 The generator gives exact joint positions; a pose tracker on real video
 does not. A model trained on exact positions would meet a different kind
-of input in use. This adds the three effects measured on the side-on
+of input in use. This adds the two effects measured on the side-on
 clip (squat_1, MediaPipe Pose heavy, 30 fps; ``scripts/real_video_check.py``):
 
 1. **Jitter**: fast, nearly white noise on every landmark. Measured as the
@@ -24,18 +24,14 @@ clip (squat_1, MediaPipe Pose heavy, 30 fps; ``scripts/real_video_check.py``):
    wanders by 1.8% x (segment / leg, about 0.5) / sqrt(2) = 0.65% of leg
    length, as Gaussian-smoothed white noise with a 0.09 s kernel (whose
    autocorrelation exp(-t^2 / 4 s^2) halves at 0.15 s).
-3. **Knees out of plane**: in a squat the knees travel out over the toes,
-   and a side view cannot see the sideways part, so the thigh looks
-   shorter. On the side-on clip the tracked thigh shrank to 0.91 of its
-   standing length by 60 deg of knee flexion and stayed there (shank: no
-   consistent change). cos(24 deg) = 0.91, so the thigh's sideways angle
-   is modelled as rising to ``knee_out_deg`` (mean 24) by 60 deg of knee
-   flexion. The hip and ankle stay where they are and the knee point is
-   re-placed for the shorter apparent thigh, which also changes the
-   apparent knee angle, as on real video.
+The knees travelling out of the side camera's plane (on the side-on clip
+the tracked thigh shrank to 0.91 of its standing length by 60 deg of
+knee bend) is no longer a noise term: 3D reps filmed by the virtual
+camera (core/model3d.py, video/camera.py) give it from the stance, 0.909
+at 100 deg of knee bend (docs/model3d.md).
 
 Everything here comes from ONE person in ONE clip. The spreads
-(``KNEE_OUT_DEG`` SD, the per-person scaling of jitter and drift) are
+(the per-person scaling of jitter and drift) are
 ASSUMPTIONS until more side-on videos are added. Tracker *bias* (how far
 MediaPipe's hip or shoulder sits from the true joint centre) cannot be
 measured without a reference system and is not modelled.
@@ -46,7 +42,7 @@ from dataclasses import dataclass
 import numpy as np
 from scipy.ndimage import gaussian_filter1d
 
-from exercise_quality.core.observed import POINTS, ObservedTrack, observed_angles, segment_lengths
+from exercise_quality.core.observed import POINTS, ObservedTrack, segment_lengths
 
 # High-frequency jitter SD measured above 6 Hz, fraction of leg length,
 # (x, y). squat_1, 30 fps.
@@ -62,8 +58,6 @@ DRIFT_SEGMENT_SD = 0.018
 _SEGMENT_OVER_LEG = {"ear": 0.23, "heel": 0.3, "toe": 0.3}
 DRIFT = {name: DRIFT_SEGMENT_SD * _SEGMENT_OVER_LEG.get(name, 0.5) / np.sqrt(2) for name in POINTS}
 DRIFT_KERNEL_S = 0.09
-KNEE_OUT_DEG = (24.0, 8.0)       # mean measured; SD an ASSUMPTION
-KNEE_OUT_FULL_AT = 60.0          # knee flexion by which the full sideways angle is reached
 LEVEL_SD = 0.5                   # per-track spread of jitter/drift scale, log-normal sigma (ASSUMPTION)
 
 
@@ -71,36 +65,13 @@ LEVEL_SD = 0.5                   # per-track spread of jitter/drift scale, log-n
 class TrackerNoise:
     jitter_scale: float = 1.0
     drift_scale: float = 1.0
-    knee_out_deg: float = KNEE_OUT_DEG[0]
 
     @classmethod
     def sample(cls, rng):
         return cls(
             jitter_scale=float(np.exp(rng.normal(0.0, LEVEL_SD))),
             drift_scale=float(np.exp(rng.normal(0.0, LEVEL_SD))),
-            knee_out_deg=float(np.clip(rng.normal(*KNEE_OUT_DEG), 0.0, 40.0)),
         )
-
-
-def _replace_knee(hip, ankle, knee, thigh_scale):
-    """Knee position for a thigh shortened by ``thigh_scale``, hip and ankle fixed.
-
-    Keeps the shank length and the side the knee bends to (forward).
-    """
-    shank = np.linalg.norm(knee - ankle, axis=-1)
-    thigh = np.linalg.norm(hip - knee, axis=-1) * thigh_scale
-    d_vec = hip - ankle
-    d = np.linalg.norm(d_vec, axis=-1)
-    eps = 1e-12 * (shank + thigh)
-    d = np.clip(d, np.abs(shank - thigh) + eps, shank + thigh - eps)
-    along = (shank**2 - thigh**2 + d**2) / (2 * d)
-    across = np.sqrt(np.maximum(shank**2 - along**2, 0.0))
-    unit = d_vec / np.linalg.norm(d_vec, axis=-1, keepdims=True)
-    normal = np.stack([unit[..., 1], -unit[..., 0]], axis=-1)   # points forward for an upright leg
-    side = np.sign(np.sum((knee - ankle) * normal, axis=-1))
-    side = np.where(side == 0, 1.0, side)
-    moved = ankle + along[..., None] * unit + (side * across)[..., None] * normal
-    return np.where((np.asarray(thigh_scale) < 1.0)[..., None], moved, knee)
 
 
 def apply(track, noise, rng):
@@ -108,11 +79,6 @@ def apply(track, noise, rng):
     lengths = segment_lengths(track)
     leg = float(np.median(lengths["thigh"] + lengths["shank"]))
     points = {k: v.copy() for k, v in track.points.items()}
-
-    if noise.knee_out_deg > 0:
-        knee = observed_angles(track, foot_pitch_reference=0.0)["knee_flexion"]
-        angle = np.radians(noise.knee_out_deg) * np.clip(knee / KNEE_OUT_FULL_AT, 0.0, 1.0)
-        points["knee"] = _replace_knee(points["hip"], points["ankle"], points["knee"], np.cos(angle))
 
     n = len(track)
     sigma_frames = DRIFT_KERNEL_S * track.fps

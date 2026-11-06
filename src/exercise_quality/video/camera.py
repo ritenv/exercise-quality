@@ -42,8 +42,7 @@ Tracker noise
 -------------
 ``TrackerNoise`` jitter and drift (core/tracker_noise.py, measured on a
 side-on clip) are added in image pixels, scaled by the near leg's
-length in the image, for every view. Its knees-out term is not applied:
-the 3D geometry already has the knees travelling out. Whether MediaPipe
+length in the image, for every view. Whether MediaPipe
 is as noisy from the front as from the side is not known (ASSUMPTION).
 """
 
@@ -73,6 +72,16 @@ _NOISE_POINT = {
 }
 NEAR_VISIBILITY, FAR_VISIBILITY = 0.9, 0.6
 MEDIAPIPE_HIP_OUTWARD = 0.35
+# Where people put a phone for a side-view squat video, following the
+# filming advice (docs/model3d.md: 3.5 m or more, within 15 deg of
+# side-on): ASSUMPTION, uniform ranges. Lens from about knee height (a
+# phone on the floor against something) to chest height (a shelf or a
+# tripod). A real phone's lens height matters: at 1 m, knees travelling
+# out towards it make the thigh look about 3 deg higher at the bottom
+# than a perfect side view; at 0.5 m about 0.5 deg (docs/model3d.md).
+SIDE_AZIMUTH_SPREAD = 10.0
+SIDE_DISTANCE = (3.0, 5.0)
+SIDE_LENS_HEIGHT = (0.4, 1.3)
 
 
 @dataclass(frozen=True)
@@ -113,6 +122,33 @@ class Camera:
         return np.stack([u, v], axis=-1), c[..., 2]
 
 
+def sample_side_camera(rng, offset=None):
+    """A phone filming the person's right side, placed as people do (``SIDE_*``).
+
+    ``offset``: degrees from side-on (positive = towards the front), drawn
+    within ``SIDE_AZIMUTH_SPREAD`` if not given.
+    """
+    if offset is None:
+        offset = rng.uniform(-SIDE_AZIMUTH_SPREAD, SIDE_AZIMUTH_SPREAD)
+    return Camera(azimuth=90.0 - float(offset), distance=float(rng.uniform(*SIDE_DISTANCE)),
+                  lens_height=float(rng.uniform(*SIDE_LENS_HEIGHT)))
+
+
+def filmed_track(seq, camera=None, rng=None):
+    """Side-view ``ObservedTrack`` of a 3D rep seen by ``camera``, exactly as the real-video
+    pipeline reads a clip (``mediapipe_pose.observed_track``), with no tracker noise.
+
+    With no camera, one is drawn by ``sample_side_camera(rng)``. Tracker jitter and
+    drift are added afterwards with ``tracker_noise.apply``, so faults can be edited
+    into the track first (``exercises/squat/track_faults.py``).
+    """
+    from exercise_quality.video import mediapipe_pose as mpp
+
+    if camera is None:
+        camera = sample_side_camera(rng if rng is not None else np.random.default_rng())
+    return mpp.observed_track(synthetic_raw(seq, camera))
+
+
 def _mediapipe_array(landmarks, body=None):
     first = next(iter(landmarks.values()))
     out = np.zeros(first.shape[:-1] + (N_LANDMARKS, 3))
@@ -151,7 +187,7 @@ def image_noise(image_xy, fps, leg_px, noise, rng):
 def synthetic_raw(seq, camera=Camera(), noise=None, rng=None, name="synthetic"):
     """MediaPipe-format raw track of a 3D rep seen by ``camera``.
 
-    ``noise``: a ``TrackerNoise`` (its knees-out term is ignored), or None
+    ``noise``: a ``TrackerNoise``, or None
     for exact projections. Returns the dict ``mediapipe_pose.load_raw``
     would, plus ``camera`` and ``name``.
     """
@@ -165,8 +201,8 @@ def synthetic_raw(seq, camera=Camera(), noise=None, rng=None, name="synthetic"):
     lateral = seq.landmarks3d["right_hip"] - seq.landmarks3d["left_hip"]
     facing_right = np.median(lateral @ -rot[2]) > 0      # the person's right side faces the camera
     visibility = np.empty(points.shape[:-1])
-    for i, name in MEDIAPIPE_SOURCE.items():
-        side = _side_of(name)
+    for i, source in MEDIAPIPE_SOURCE.items():
+        side = _side_of(source)
         near = side is None or (side == "right") == facing_right
         visibility[..., i] = NEAR_VISIBILITY if near else FAR_VISIBILITY
     if noise is not None:

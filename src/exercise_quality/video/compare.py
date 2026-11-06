@@ -24,13 +24,15 @@ from dataclasses import replace
 import numpy as np
 
 from exercise_quality.core import tracker_noise as TN
+from exercise_quality.core.model3d import body3d_of
+from exercise_quality.core.sagittal_body import BodyPopulation
 from exercise_quality.core.observed_balance import com_fraction, projected_body
 from exercise_quality.core.observed import from_model_landmarks, observed_angles, segment_lengths
 from exercise_quality.core.sagittal_model import JointAngles, forward_kinematics
 from exercise_quality.core.timing import RepTiming
 from exercise_quality.exercises.squat import reps as R
 from exercise_quality.exercises.squat.balanced import ArmPosture, generate_feasible_squat
-from exercise_quality.exercises.squat.protocols import ISHIDA_PARALLEL, sample_style
+from exercise_quality.exercises.squat.protocols import ISHIDA_PARALLEL, sample_stance, sample_style
 
 RATIOS = ("thigh", "trunk", "foot", "neck")
 
@@ -117,20 +119,40 @@ def arm_posture(shoulder_flexion, elbow_flexion):
     return ArmPosture("trunk", float(shoulder_flexion), float(max(elbow_flexion, 0.0)))
 
 
+_POPULATION = []
+
+
+def _population():
+    if not _POPULATION:
+        _POPULATION.append(BodyPopulation.load())
+    return _POPULATION[0]
+
+
 def synthetic_rep(body, knee_peak, timing, arms, seed, fps=30.0, tracker_noise=True,
-                  return_track=False):
+                  return_track=False, camera_offset=0.0, lens_height=None):
     """Generate one matched rep and measure it like a tracked one. None if it fails.
 
-    With ``tracker_noise`` the exact landmarks first go through the
-    MediaPipe-like noise model (core/tracker_noise.py).
+    The rep is 3D: the ANSUR person's ``Body3D`` with a sampled stance
+    (feet width and toe-out, Sinclair 2022), filmed by a phone
+    ``camera_offset`` degrees from side-on (positive = towards the front;
+    distance and, unless ``lens_height`` is given, height drawn by
+    ``camera.sample_side_camera``) and read
+    by the real-video pipeline. With ``tracker_noise`` MediaPipe-like
+    jitter and drift are added (core/tracker_noise.py).
     """
+    from exercise_quality.video import camera as cam
+
     rng = np.random.default_rng(seed)
     style = sample_style(rng, body, ISHIDA_PARALLEL)
-    style = replace(style, peak_knee_flexion=float(knee_peak), timing=timing, arms=arms)
-    seq = generate_feasible_squat(body, style, fps=fps)
+    style = replace(style, peak_knee_flexion=float(knee_peak), timing=timing, arms=arms,
+                    stance=sample_stance(rng))
+    seq = generate_feasible_squat(body3d_of(_population(), body), style, fps=fps)
     if not seq.is_feasible:
         return None
-    track = from_model_landmarks(seq.landmarks, fps, source="synthetic")
+    camera = cam.sample_side_camera(rng, camera_offset)
+    if lens_height is not None:
+        camera = replace(camera, lens_height=float(lens_height))
+    track = cam.filmed_track(seq, camera)
     if tracker_noise:
         track = TN.apply(track, TN.TrackerNoise.sample(rng), rng)
     track = R.smoothed(track)
