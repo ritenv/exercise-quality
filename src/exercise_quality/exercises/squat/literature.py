@@ -40,6 +40,12 @@ SOURCES = {
         "2024;19(4):490-501. doi:10.26603/001c.94600 (narrative review, used "
         "for definitions and the hip end-range mechanism, not for numbers)"
     ),
+    "fujiwara2010": (
+        "Fujiwara K, Asai H, Kiyota N, Mammadova A. Relationship between quiet "
+        "standing position and perceptibility of standing position in the "
+        "anteroposterior direction. J Physiol Anthropol. 2010;29(5):197-203. "
+        "doi:10.2114/jpa2.29.197 (abstract)"
+    ),
     "hemmerich2006": (
         "Hemmerich A, Brown H, Smith S, Marthandam SSK, Wyss UP. Hip, knee, and "
         "ankle kinematics of high range of motion activities of daily living. "
@@ -142,3 +148,8 @@ MATA_2021 = {
     "hip_at_ppt_absolute": Measurement(109.88, 8.7, "mata2021",
                                        "hip flexion when the pelvis starts tilting back (absolute)"),
 }
+
+# Fujiwara et al. 2010 (abstract): centre of pressure in quiet standing
+# lay between 31% and 58% of foot length from the heel. Only the range is
+# reported.
+QUIET_STANDING_COP_RANGE = (0.31, 0.58)

@@ -50,6 +50,24 @@ def test_ankle_and_com_shift_are_correlated_like_kasahara(population):
     assert r == pytest.approx(p.ANKLE_SHIFT_CORRELATION, abs=0.05)
 
 
+def test_weight_position_sampling_matches_every_source():
+    """Standing position, bottom position and ankle use are sampled
+    jointly so Ishida's bottom position, Kasahara's shift and its
+    correlation with the ankle, and Fujiwara's standing range all hold."""
+    rng = np.random.default_rng(5)
+    x = np.array([p._sample_ankle_and_weight_position(rng) for _ in range(20000)])
+    ratio, start, bottom = x.T
+    shift = bottom - start
+    assert bottom.mean() == pytest.approx(lit.ISHIDA_2025["cop_fraction"].mean, abs=0.005)
+    assert bottom.std() == pytest.approx(lit.ISHIDA_2025["cop_fraction"].sd, abs=0.005)
+    assert shift.mean() == pytest.approx(-0.05, abs=0.005)
+    assert shift.std() == pytest.approx(0.096, abs=0.006)
+    assert np.corrcoef(ratio, shift)[0, 1] == pytest.approx(p.ANKLE_SHIFT_CORRELATION, abs=0.03)
+    lo, hi = lit.QUIET_STANDING_COP_RANGE
+    assert np.mean((start >= lo) & (start <= hi)) > 0.9
+    assert np.all(np.linalg.eigvalsh(p.weight_position_correlations()) > 0)
+
+
 def test_rep_metrics_on_a_known_rep(population):
     seq = generate_squat(population.median_body("male"))
     m = rep_metrics(seq)

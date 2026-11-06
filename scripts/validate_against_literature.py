@@ -11,6 +11,7 @@ import sys
 import numpy as np
 
 from exercise_quality.core.sagittal_body import BodyPopulation
+from exercise_quality.exercises.squat import literature as lit
 from exercise_quality.exercises.squat.cohort import KIND, validation_report
 
 
@@ -29,6 +30,12 @@ def main(n):
             kind = KIND.get((study, r.metric), "")
             print(f"| {r.what} | {r.model_mean:.3g} ({r.model_sd:.2g}) | "
                   f"{r.published_mean:.3g} ({pub_sd}) | {z} | {kind} |")
+        standing = cohort.values("standing_cop_fraction")
+        lo, hi = lit.QUIET_STANDING_COP_RANGE
+        inside = 100 * np.mean((standing >= lo) & (standing <= hi))
+        print(f"\nStanding COP {100 * standing.mean():.0f}% of foot (SD {100 * standing.std():.0f}); "
+              f"{inside:.0f}% of people inside Fujiwara 2010's quiet-standing range "
+              f"({100 * lo:.0f}-{100 * hi:.0f}%).")
 
 
 if __name__ == "__main__":

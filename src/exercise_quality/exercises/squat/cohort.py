@@ -92,6 +92,7 @@ def rep_metrics(seq, dyn=None):
         "knee_peak_time_pct": peak_pct(knee),
         "pelvis_peak_time_pct": peak_pct(pelvis),
         "cop_max_offset_m": dyn.max_cop_offset,
+        "standing_cop_fraction": float(dyn.cop_fraction[0]),
         "feasible": seq.is_feasible and dyn.stays_on_foot,
         "depth_limited": "depth_limited_by_mobility" in seq.notes,
     }
@@ -183,7 +184,7 @@ KIND = {
     ("kasahara", "com_ap_shift_pct_foot"): "input",
     ("kasahara", "trunk_rom"): "cross-study check",
     ("kasahara", "hip_rom"): "fitted",
-    ("kasahara", "knee_rom"): "input",
+    ("kasahara", "knee_rom"): "cross-study check (depth from Ishida)",
     ("kasahara", "ankle_rom"): "input (from Ishida)",
     ("kasahara", "trunk_peak_ms"): "prediction",
     ("kasahara", "hip_peak_ms"): "fitted",

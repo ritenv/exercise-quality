@@ -33,6 +33,16 @@ ANKLE_KNEE_RATIO = (lit.ISHIDA_2025["ankle_peak"].mean / lit.ISHIDA_2025["knee_p
 # Kasahara 2024, correlation between ankle ROM and COM forward displacement.
 ANKLE_SHIFT_CORRELATION = 0.398
 
+# Standing COM position, fraction of foot length from the heel. The mean
+# is Ishida's bottom position minus Kasahara's forward shift (0.363 + 0.05
+# = 0.413), which keeps both measured means; it sits inside the 31-58%
+# range Fujiwara et al. 2010 found in quiet standing. The SD is a quarter
+# of that range (read as +-2 SD), an ASSUMPTION from a range.
+STANDING_POSITION = (
+    lit.ISHIDA_2025["cop_fraction"].mean - lit.KASAHARA_2024["com_ap_shift_pct_foot"].mean / 100.0,
+    0.0675,
+)
+
 # Ankle-knee coupling exponent gamma in ankle share = 1 - (1 - u)**gamma,
 # u = knee / peak knee. Fitted to Ishida 2025: at 60 deg knee (u = 0.493)
 # the ankle is at 19.3 / 33.8 = 0.571 of its peak, giving gamma = 1.25; at
@@ -117,7 +127,16 @@ ISHIDA_PARALLEL = Protocol(
 KASAHARA_PARALLEL = Protocol(
     name="kasahara2024_parallel",
     arms=ARMS_CROSSED,
-    knee_peak=(lit.KASAHARA_2024["knee_rom"].mean, lit.KASAHARA_2024["knee_rom"].sd),
+    # Depth: the instruction was "thighs parallel to the floor", the same
+    # as Ishida 2025 from the same lab (Kasahara cites that protocol), so
+    # Ishida's measured peak knee flexion is used. Kasahara's own knee
+    # figure (107 deg) is a range of motion from the starting angle; used
+    # as a peak it left the model's thighs 18 deg above horizontal and the
+    # COM drop at 18% of height against their measured 23%. With Ishida's
+    # depth the thighs are within about 5 deg of parallel and the COM drop
+    # matches. A slightly bent standing knee in their data would explain
+    # the difference.
+    knee_peak=(lit.ISHIDA_2025["knee_peak"].mean, lit.ISHIDA_2025["knee_peak"].sd),
     # ascent duration not reported; 2 s assumed to mirror the descent
     timing=RepTiming(stand_before=0.5, descent=2.0, ascent=2.0, stand_after=0.5),
     note="arms crossed, thighs parallel, 2 s descent",
@@ -143,6 +162,43 @@ PROTOCOLS = {p.name: p for p in (ISHIDA_PARALLEL, KASAHARA_PARALLEL, ZAWADKA_MAX
 def _normal(rng, mean_sd, lo=-np.inf, hi=np.inf):
     mean, sd = mean_sd
     return float(np.clip(rng.normal(mean, sd), lo, hi))
+
+
+def weight_position_correlations():
+    """Correlation matrix of (ankle z, COM shift, standing position).
+
+    Chosen so that every published statistic holds at once:
+      * ankle vs shift: Kasahara's R = 0.398
+      * standing vs shift: fixed by var(bottom) = var(standing + shift),
+        i.e. cov(standing, shift) = (sd_bottom^2 - sd_stand^2 - sd_shift^2) / 2
+      * ankle vs standing: assumed to act only through the shift
+        (conditional independence), corr = product of the other two
+    """
+    sd_bottom = lit.ISHIDA_2025["cop_fraction"].sd
+    sd_shift = lit.KASAHARA_2024["com_ap_shift_pct_foot"].sd / 100.0
+    sd_stand = STANDING_POSITION[1]
+    r_as = ANKLE_SHIFT_CORRELATION
+    r_ss = (sd_bottom**2 - sd_stand**2 - sd_shift**2) / (2 * sd_stand * sd_shift)
+    r_at = r_as * r_ss
+    return np.array([[1.0, r_as, r_at], [r_as, 1.0, r_ss], [r_at, r_ss, 1.0]])
+
+
+def _sample_ankle_and_weight_position(rng):
+    """Ankle ratio, standing COM position and bottom COM position, jointly.
+
+    Sampling them independently made the standing position far too
+    variable (SD 12% of foot length; only 70% of people inside the 31-58%
+    range Fujiwara et al. measured in quiet standing).
+    """
+    z = np.linalg.cholesky(weight_position_correlations()) @ rng.normal(size=3)
+    ratio_mean, ratio_sd = ANKLE_KNEE_RATIO
+    shift_pct = lit.KASAHARA_2024["com_ap_shift_pct_foot"]
+    ratio = float(np.clip(ratio_mean + ratio_sd * z[0], 0.05, 0.5))
+    shift = shift_pct.mean / 100.0 + shift_pct.sd / 100.0 * z[1]
+    start = STANDING_POSITION[0] + STANDING_POSITION[1] * z[2]
+    start = float(np.clip(start, 0.20, 0.65))
+    bottom = float(np.clip(start + shift, 0.20, 0.60))
+    return ratio, start, bottom
 
 
 def sample_limits(rng, hip_limit=HIP_LIMIT, hip_gain=None):
@@ -172,21 +228,8 @@ def sample_style(rng, body, protocol=ISHIDA_PARALLEL,
         # a maximal squat cannot go past the person's own knee limit
         knee_peak = min(knee_peak, limits.knee_flexion)
 
-    bottom = _normal(rng, (lit.ISHIDA_2025["cop_fraction"].mean,
-                           lit.ISHIDA_2025["cop_fraction"].sd), 0.20, 0.60)
-
-    # People with more ankle motion move their COM further forward during
-    # the descent (Kasahara 2024: R = 0.398 between ankle ROM and COM
-    # forward displacement). Sample the ankle ratio and the COM shift with
-    # that correlation instead of independently.
-    ratio_mean, ratio_sd = ANKLE_KNEE_RATIO
-    z_ankle = rng.normal()
-    z_other = rng.normal()
-    ratio = float(np.clip(ratio_mean + ratio_sd * z_ankle, 0.05, 0.5))
-    shift_pct = lit.KASAHARA_2024["com_ap_shift_pct_foot"]
-    rho = ANKLE_SHIFT_CORRELATION
-    shift = (shift_pct.mean + shift_pct.sd * (rho * z_ankle + np.sqrt(1 - rho**2) * z_other)) / 100.0
-    shift = float(np.clip(shift, bottom - 0.65, bottom - 0.20))  # start stays on the foot
+    ratio, start, bottom = _sample_ankle_and_weight_position(rng)
+    shift = bottom - start
 
     timing = protocol.timing
     if protocol.tempo_jitter:
