@@ -1,6 +1,9 @@
 """Animate one balanced squat rep with its centre of mass and pressure.
 
-    PYTHONPATH=src python scripts/animate_balanced_squat.py [seed]
+    PYTHONPATH=src python scripts/animate_balanced_squat.py [seed] [out.mp4|out.gif]
+
+With an output path the animation is saved instead of shown (mp4 needs
+ffmpeg on the PATH).
 
 Red dot: centre of mass. Black triangle: dynamic centre of pressure.
 Grey bar: heel to toe. People who cannot reach the protocol depth squat
@@ -9,6 +12,12 @@ still infeasible is labelled in red instead of being shown as normal.
 """
 
 import sys
+
+import matplotlib
+
+OUT = sys.argv[2] if len(sys.argv) > 2 else None
+if OUT:
+    matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -51,4 +60,8 @@ def animate(i):
 
 
 animation = FuncAnimation(fig, animate, frames=len(seq.times), interval=1000 / FPS, repeat=True)
-plt.show()
+if OUT:
+    animation.save(OUT, fps=FPS, dpi=100)
+    print(f"saved {OUT}")
+else:
+    plt.show()
