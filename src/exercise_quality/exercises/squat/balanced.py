@@ -24,6 +24,11 @@ The balance is quasi-static: it treats every frame as if the body were
 still. core/dynamics.py estimates how far the true centre of pressure
 moves away from the centre of mass because of accelerations.
 
+In 3D (``SquatStyle.stance`` set and a ``core.model3d.Body3D`` body)
+the same angles drive the 3D model, and balance is solved on the 3D
+centre of mass's forward position. ``SquatSequence.landmarks`` is then
+the side view (the (x, y) projection) and ``landmarks3d`` the full pose.
+
 Where the defaults come from is documented in docs/model.md.
 """
 
@@ -127,6 +132,9 @@ class SquatStyle:
     sway_amplitude: float = 0.0
     sway_median_hz: float = 0.33
     sway_seed: int = 0
+    # Feet placement and frontal-plane faults (core/model3d.Stance). None
+    # keeps the side-view model; set it with a Body3D for a 3D rep.
+    stance: object = None
 
     @property
     def com_target_start(self):
@@ -158,6 +166,8 @@ class SquatSequence:
     flags: tuple                 # problems that make the rep unrealistic
     balance_error: np.ndarray    # (T,) COM x minus target, metres
     notes: tuple = ()            # realistic but worth knowing, e.g. ankle_at_limit
+    landmarks3d: dict = None     # 3D reps only: name -> (T, 3)
+    com3d: np.ndarray = None     # 3D reps only: (T, 3)
 
     @property
     def support(self):
@@ -172,7 +182,16 @@ class SquatSequence:
         return self.measured()["trunk_inclination"]
 
     def measured(self):
+        """Joint angles and segment inclinations. For a 3D rep these are the
+        angles within each leg's plane and the trunk's mid-plane, as 3D
+        motion capture reports them, not their side-view projections."""
+        if self.landmarks3d is not None:
+            return measure_joint_angles(forward_kinematics(self.body.sagittal, self.angles))
         return measure_joint_angles(self.landmarks)
+
+    @property
+    def is_3d(self):
+        return self.landmarks3d is not None
 
     def frame(self, i):
         return {name: xy[i] for name, xy in self.landmarks.items()}
@@ -261,9 +280,25 @@ def _angles_for_trunk(ankle, knee, trunk, style):
     )
 
 
-def _com_x(body, ankle, knee, trunk, style):
-    lm = forward_kinematics(body, _angles_for_trunk(ankle, knee, trunk, style))
-    return centre_of_mass(body, lm)[..., 0]
+def _kinematics(style):
+    if style.stance is None:
+        return None
+    from exercise_quality.core.model3d import Kinematics3D
+
+    return Kinematics3D(style.stance)
+
+
+def _com_x(body, ankle, knee, trunk, style, progress=0.0):
+    angles = _angles_for_trunk(ankle, knee, trunk, style)
+    kin = _kinematics(style)
+    if kin is None:
+        return centre_of_mass(body, forward_kinematics(body, angles))[..., 0]
+    return kin.centre_of_mass(body, kin.forward_kinematics(body, angles, progress))[..., 0]
+
+
+def _support(body, style):
+    kin = _kinematics(style)
+    return support_region(body) if kin is None else kin.support_region(body)
 
 
 def _bisect(fn, lo, hi, iterations=40):
@@ -281,7 +316,7 @@ def _bisect(fn, lo, hi, iterations=40):
 
 def solve_standing_lean(body, style):
     """Ankle angle that balances upright standing (knees and hips straight)."""
-    target = support_region(body).x_at(style.com_target_start)
+    target = _support(body, style).x_at(style.com_target_start)
     # trunk = ankle when knee and hip are straight
     def f(a):
         return _com_x(body, a, np.zeros_like(a), a, style) - target
@@ -347,22 +382,23 @@ def split_correction(ankle_base, trunk_base, correction, style):
     return ankle, thorax
 
 
-def solve_correction(body, ankle_base, knee, trunk_base, target_x, style):
+def solve_correction(body, ankle_base, knee, trunk_base, target_x, style, progress=None):
     """Balance correction per frame that puts the COM x on ``target_x``.
 
     Searches a 1 degree grid for sign changes, follows the root nearest
     the previous frame (so the solution is continuous) and refines it by
     bisection. Frames without any root get NaN.
     """
-    ankle_base, knee, trunk_base, target_x = np.broadcast_arrays(
-        *(np.asarray(v, float) for v in (ankle_base, knee, trunk_base, target_x)))
+    progress = np.zeros_like(np.asarray(knee, float)) if progress is None else progress
+    ankle_base, knee, trunk_base, target_x, progress = np.broadcast_arrays(
+        *(np.asarray(v, float) for v in (ankle_base, knee, trunk_base, target_x, progress)))
 
-    def com_x(a, k, t, lam):
+    def com_x(a, k, t, lam, prog):
         ankle, thorax = split_correction(a, t, lam, style)
-        return _com_x(body, ankle, k, thorax, style)
+        return _com_x(body, ankle, k, thorax, style, prog)
 
     grid = TRUNK_SEARCH_DEG
-    values = com_x(ankle_base[:, None], knee[:, None], trunk_base[:, None], grid[None, :])
+    values = com_x(ankle_base[:, None], knee[:, None], trunk_base[:, None], grid[None, :], progress)
     values = values - target_x[:, None]
 
     lo = np.full(knee.shape, np.nan)
@@ -379,10 +415,11 @@ def solve_correction(body, ankle_base, knee, trunk_base, target_x, style):
     found = ~np.isnan(lo)
     correction = np.full(knee.shape, np.nan)
     if found.any():
-        a, kn, t, tx = ankle_base[found], knee[found], trunk_base[found], target_x[found]
+        a, kn, t, tx, pr = (ankle_base[found], knee[found], trunk_base[found], target_x[found],
+                            progress[found])
 
         def f(lam):
-            return com_x(a, kn, t, lam) - tx
+            return com_x(a, kn, t, lam, pr) - tx
 
         correction[found] = _bisect(f, lo[found], lo[found] + 1.0)
     return correction
@@ -393,7 +430,8 @@ def generate_squat(body, style=None, fps=100.0):
     style = style or SquatStyle()
     timing = style.timing
     limits = style.limits
-    support = support_region(body)
+    support = _support(body, style)
+    kin = _kinematics(style)
     flags, notes = [], []
 
     times = timing.times(fps)
@@ -431,7 +469,8 @@ def generate_squat(body, style=None, fps=100.0):
             len(times), fps, np.random.default_rng(style.sway_seed), style.sway_median_hz,
             pendulum_height=com_height)
 
-    correction = solve_correction(body, ankle_base, knee, trunk_base, target_x, style)
+    correction = solve_correction(body, ankle_base, knee, trunk_base, target_x, style,
+                                  progress=knee_profile)
     if np.isnan(correction).any():
         flags.append("balance_unreachable")
         correction = _fill_gaps(correction)
@@ -440,8 +479,19 @@ def generate_squat(body, style=None, fps=100.0):
         notes.append("ankle_at_limit")
 
     angles = _angles_for_trunk(ankle, knee, trunk, style)
-    landmarks = forward_kinematics(body, angles)
-    com = centre_of_mass(body, landmarks)
+    landmarks3d = com3d = None
+    if kin is None:
+        landmarks = forward_kinematics(body, angles)
+        com = centre_of_mass(body, landmarks)
+    else:
+        from exercise_quality.core.model3d import MAX_LEG_TILT_SIN, side_view
+
+        landmarks3d = kin.forward_kinematics(body, angles, knee_profile)
+        if np.nanmax(np.abs(landmarks3d.pop("leg_tilt_sin"))) > MAX_LEG_TILT_SIN:
+            flags.append("hips_unreachable")
+        com3d = kin.centre_of_mass(body, landmarks3d)
+        landmarks = side_view(landmarks3d)
+        com = com3d[..., :2]
 
     if np.nanmax(angles.lumbar_flexion) > limits.lumbar_flexion:
         flags.append("lumbar_beyond_limit")
@@ -457,6 +507,8 @@ def generate_squat(body, style=None, fps=100.0):
         flags=tuple(flags),
         balance_error=com[:, 0] - target_x,
         notes=tuple(notes),
+        landmarks3d=landmarks3d,
+        com3d=com3d,
     )
 
 

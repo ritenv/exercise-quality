@@ -1,4 +1,4 @@
-"""Build the small ANSUR II subset used by the sagittal body model.
+"""Build the small ANSUR II subset used by the body models.
 
 The raw ANSUR II public files are not committed. Download them from the
 Penn State OPEN Design Lab (https://www.openlab.psu.edu/ansur2/):
@@ -11,7 +11,7 @@ then run:
     python scripts/build_ansur_subset.py MALE.csv FEMALE.csv
 
 The output keeps only the measurements needed to place joint centres in
-a side-view model, converted to metres and kilograms. Rows whose heights
+the side-view model and the breadths the 3D model adds, converted to metres and kilograms. Rows whose heights
 are not ordered the way a standing human must be (ankle below knee below
 hip below navel and so on, ball of the foot behind the toe tip) are dropped and counted.
 
@@ -42,6 +42,13 @@ LENGTH_COLUMNS = {
     "handlength": "hand_length_m",
     "balloffootlength": "ball_of_foot_length_m",
     "footlength": "foot_length_m",
+    # breadths for the 3D model (core/body3d.py)
+    "hipbreadth": "hip_breadth_m",
+    "biacromialbreadth": "biacromial_breadth_m",
+    "bicristalbreadth": "bicristal_breadth_m",
+    "footbreadthhorizontal": "foot_breadth_m",
+    "heelbreadth": "heel_breadth_m",
+    "headbreadth": "head_breadth_m",
 }
 
 FIELDNAMES = ["subject_id", "sex", "age_years", *LENGTH_COLUMNS.values(), "mass_kg"]
