@@ -159,9 +159,18 @@ ZAWADKA_MAX_DEPTH = Protocol(
 PROTOCOLS = {p.name: p for p in (ISHIDA_PARALLEL, KASAHARA_PARALLEL, ZAWADKA_MAX_DEPTH)}
 
 
+# Per-person style draws are truncated at this many SDs. The published
+# spreads come from 16-60 people and say nothing about the far tails;
+# untruncated normal draws occasionally produced caricatures (for example
+# a 3.3 SD trunk-lean preference combined with stiff hips gave 69 deg of
+# lumbar flexion at parallel). ASSUMPTION.
+TRUNCATE_SD = 2.5
+
+
 def _normal(rng, mean_sd, lo=-np.inf, hi=np.inf):
     mean, sd = mean_sd
-    return float(np.clip(rng.normal(mean, sd), lo, hi))
+    z = float(np.clip(rng.normal(), -TRUNCATE_SD, TRUNCATE_SD))
+    return float(np.clip(mean + sd * z, lo, hi))
 
 
 def weight_position_correlations():
@@ -191,6 +200,7 @@ def _sample_ankle_and_weight_position(rng):
     range Fujiwara et al. measured in quiet standing).
     """
     z = np.linalg.cholesky(weight_position_correlations()) @ rng.normal(size=3)
+    z = np.clip(z, -TRUNCATE_SD, TRUNCATE_SD)
     ratio_mean, ratio_sd = ANKLE_KNEE_RATIO
     shift_pct = lit.KASAHARA_2024["com_ap_shift_pct_foot"]
     ratio = float(np.clip(ratio_mean + ratio_sd * z[0], 0.05, 0.5))

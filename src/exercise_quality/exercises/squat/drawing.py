@@ -33,7 +33,9 @@ def draw_pose(ax, landmarks, com=None, support=None, cop_x=None, alpha=1.0):
 
 
 def style_axes(ax, height=2.0):
-    ax.set_xlim(-0.75, 0.75)
+    # widen when the body reaches further (e.g. arms held forward)
+    x0, x1 = ax.dataLim.x0, ax.dataLim.x1
+    ax.set_xlim(min(-0.75, x0 - 0.05), max(0.75, x1 + 0.05))
     ax.set_ylim(-0.05, height)
     ax.set_aspect("equal")
     ax.grid(alpha=0.2)
