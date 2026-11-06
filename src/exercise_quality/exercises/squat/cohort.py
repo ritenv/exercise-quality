@@ -54,14 +54,23 @@ def rep_metrics(seq, dyn=None):
     com_y = seq.com[w, 1]
     cop = dyn.cop_fraction[w]
 
-    lowest = t[int(np.argmin(com_y))]
     timing = seq.style.timing
+    # Peak timing is measured over the descent itself (Zawadka's 0-100%),
+    # not the bottom hold: during a hold the angles sit on a plateau with
+    # sway and float noise, so an argmax there lands on an arbitrary frame.
+    # The window is closed so the last descent frame (the bottom) counts.
+    descent_only = t <= timing.descent_start + timing.descent + 1e-9
+    td = t[descent_only]
+    lowest = td[int(np.argmin(com_y[descent_only]))]
+
+    def peak_time(values):
+        return td[int(np.argmax(values[descent_only]))]
 
     def peak_ms(values):
-        return 1000.0 * (t[int(np.argmax(values))] - lowest)
+        return 1000.0 * (peak_time(values) - lowest)
 
     def peak_pct(values):
-        return 100.0 * (t[int(np.argmax(values))] - timing.descent_start) / timing.descent
+        return 100.0 * (peak_time(values) - timing.descent_start) / timing.descent
 
     return {
         "knee_peak": float(knee.max()),
