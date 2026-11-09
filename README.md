@@ -29,6 +29,7 @@ uv venv .venv --python 3.13 && source .venv/bin/activate   # or python3 -m venv 
 uv pip install -r requirements.txt
 python -m pytest                                              # all tests
 PYTHONPATH=src python scripts/animate_balanced_squat.py 3     # one rep, seed 3
+PYTHONPATH=src python scripts/animate_squat_3d.py 3          # a 3D rep: front, side, rotatable (--cave 25 for knees caving in)
 PYTHONPATH=src python scripts/plot_squat_gallery.py           # 12 people at the bottom
 PYTHONPATH=src python scripts/plot_squat_curves.py            # angles, COM, COP over time
 PYTHONPATH=src python scripts/render_filmstrip.py 5 zawadka2020_max_depth out.png  # one rep as stills

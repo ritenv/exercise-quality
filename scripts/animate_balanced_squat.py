@@ -2,6 +2,8 @@
 
     PYTHONPATH=src python scripts/animate_balanced_squat.py [seed] [out.mp4|out.gif]
 
+Side view only. For the 3D model use scripts/animate_squat_3d.py.
+
 With an output path the animation is saved instead of shown (mp4 needs
 ffmpeg on the PATH).
 
